@@ -18,7 +18,7 @@ import {
     RefreshCcw,
 } from 'lucide-react';
 
-import { Container, AuctionCard, LoadingSpinner } from '../components';
+import { Container, AuctionCard, ProductCard, LoadingSpinner } from '../components';
 import { useAuctions } from '../hooks/useAuctions';
 import axiosInstance from '../utils/axiosInstance';
 import { toast } from 'react-hot-toast';
@@ -28,22 +28,57 @@ function SellerAuctions() {
 
     const [seller, setSeller] = useState(null);
     const [loadingSeller, setLoadingSeller] = useState(true);
+
+    // Auction controls
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState('createdAt-desc');
     const [showFilters, setShowFilters] = useState(false);
 
+    // Product controls
+    const [productSearchTerm, setProductSearchTerm] = useState('');
+    const [productSortBy, setProductSortBy] = useState('createdAt-desc');
+    const [productStatus, setProductStatus] = useState('active');
+    const [showProductFilters, setShowProductFilters] = useState(false);
+
+    // ==================================================
+    // AUCTIONS HOOK
+    // ==================================================
+
     const {
-    auctions,
-    loading,
-    loadingMore,
-    pagination,
-    filters,
-    updateFilters,
-    loadMoreAuctions,
-} = useAuctions({
-    seller: sellerId,
-    status: 'active',
-});
+        auctions,
+        loading: loadingAuctions,
+        loadingMore: loadingMoreAuctions,
+        pagination: auctionPagination,
+        filters: auctionFilters,
+        updateFilters: updateAuctionFilters,
+        loadMoreAuctions,
+    } = useAuctions(
+        {
+            seller: sellerId,
+            status: 'active',
+        },
+        { context: 'auction' }
+    );
+
+    // ==================================================
+    // PRODUCTS HOOK
+    // ==================================================
+
+    const {
+        auctions: products,
+        loading: loadingProducts,
+        loadingMore: loadingMoreProducts,
+        pagination: productPagination,
+        filters: productFilters,
+        updateFilters: updateProductFilters,
+        loadMoreAuctions: loadMoreProducts,
+    } = useAuctions(
+        {
+            seller: sellerId,
+            status: 'active',
+        },
+        { context: 'product' }
+    );
 
     // --------------------------------------------------
     // Fetch seller
@@ -81,47 +116,25 @@ function SellerAuctions() {
     }, [sellerId]);
 
     // --------------------------------------------------
-    // Apply seller filter
-    // --------------------------------------------------
-
-    // useEffect(() => {
-    //     if (sellerId) {
-    //         updateFilters({
-    //             seller: sellerId,
-    //             status: 'active',
-    //             page: 1,
-    //         });
-    //     }
-    // }, [sellerId]);
-
-    // --------------------------------------------------
-    // Search
+    // Auction handlers
     // --------------------------------------------------
 
     const handleSearch = (e) => {
         e.preventDefault();
 
-        updateFilters({
+        updateAuctionFilters({
             search: searchTerm,
             page: 1,
         });
     };
 
-    // --------------------------------------------------
-    // Status
-    // --------------------------------------------------
-
     const handleStatusChange = (status) => {
-        updateFilters({
+        updateAuctionFilters({
             seller: sellerId,
             status,
             page: 1,
         });
     };
-
-    // --------------------------------------------------
-    // Sort
-    // --------------------------------------------------
 
     const handleSortChange = (e) => {
         const value = e.target.value;
@@ -130,35 +143,27 @@ function SellerAuctions() {
 
         setSortBy(value);
 
-        updateFilters({
+        updateAuctionFilters({
             sortBy: sortByField,
             sortOrder,
             page: 1,
         });
     };
 
-    // --------------------------------------------------
-    // Additional filters
-    // --------------------------------------------------
-
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
 
-        updateFilters({
+        updateAuctionFilters({
             [name]: value,
             page: 1,
         });
     };
 
-    // --------------------------------------------------
-    // Reset
-    // --------------------------------------------------
-
     const resetFilters = () => {
         setSearchTerm('');
         setSortBy('createdAt-desc');
 
-        updateFilters({
+        updateAuctionFilters({
             seller: sellerId,
             status: 'active',
             search: '',
@@ -167,6 +172,69 @@ function SellerAuctions() {
             location: '',
             auctionType: '',
             allowOffers: '',
+            sortBy: 'createdAt',
+            sortOrder: 'desc',
+            page: 1,
+        });
+    };
+
+    // --------------------------------------------------
+    // Product handlers
+    // --------------------------------------------------
+
+    const handleProductSearch = (e) => {
+        e.preventDefault();
+
+        updateProductFilters({
+            search: productSearchTerm,
+            page: 1,
+        });
+    };
+
+    const handleProductSortChange = (e) => {
+        const value = e.target.value;
+
+        const [sortByField, sortOrder] = value.split('-');
+
+        setProductSortBy(value);
+
+        updateProductFilters({
+            sortBy: sortByField,
+            sortOrder,
+            page: 1,
+        });
+    };
+
+    const handleProductStatusChange = (status) => {
+        setProductStatus(status);
+
+        updateProductFilters({
+            seller: sellerId,
+            status: status === 'all' ? '' : status,
+            page: 1,
+        });
+    };
+
+    const handleProductFilterChange = (e) => {
+        const { name, value } = e.target;
+
+        updateProductFilters({
+            [name]: value,
+            page: 1,
+        });
+    };
+
+    const resetProductFilters = () => {
+        setProductSearchTerm('');
+        setProductSortBy('createdAt-desc');
+        setProductStatus('active');
+
+        updateProductFilters({
+            seller: sellerId,
+            status: 'active',
+            search: '',
+            priceMin: '',
+            priceMax: '',
             sortBy: 'createdAt',
             sortOrder: 'desc',
             page: 1,
@@ -233,23 +301,22 @@ function SellerAuctions() {
     const listedCount =
         stats.listed ??
         stats.listedCount ??
-        pagination?.totalAuctions ??
-        0;
+        ((stats.auctions?.listed || 0) + (stats.products?.listed || 0));
 
     const activeCount =
         stats.active ??
         stats.activeCount ??
-        0;
+        ((stats.auctions?.active || 0) + (stats.products?.active || 0));
 
     const soldCount =
         stats.sold ??
         stats.soldCount ??
-        0;
+        ((stats.auctions?.sold || 0) + (stats.products?.sold || 0));
 
-    // const totalBids =
-    //     stats.bids ??
-    //     stats.totalBids ??
-    //     0;
+    // Auction-only counts
+    const auctionActiveCount = stats.auctions?.active || 0;
+    const auctionSoldCount = stats.auctions?.sold || 0;
+    const auctionListedCount = stats.auctions?.listed || 0;
 
     const successRate = Math.min(
         100,
@@ -277,14 +344,14 @@ function SellerAuctions() {
     const location = locationParts.join(', ');
 
     // --------------------------------------------------
-    // Status tabs
+    // Auction status tabs
     // --------------------------------------------------
 
     const statusTabs = [
         {
             label: 'Active',
             value: 'active',
-            count: activeCount,
+            count: auctionActiveCount,
         },
         {
             label: 'Upcoming',
@@ -293,7 +360,7 @@ function SellerAuctions() {
         {
             label: 'Sold',
             value: 'sold',
-            count: soldCount,
+            count: auctionSoldCount,
         },
         {
             label: 'Ended',
@@ -302,7 +369,29 @@ function SellerAuctions() {
         {
             label: 'All Listings',
             value: '',
-            count: listedCount,
+            count: auctionListedCount,
+        },
+    ];
+
+    // --------------------------------------------------
+    // Product status tabs
+    // --------------------------------------------------
+
+    const productStatusTabs = [
+        {
+            label: 'Available',
+            value: 'active',
+            count: stats.products?.active || 0,
+        },
+        {
+            label: 'Sold',
+            value: 'sold',
+            count: stats.products?.sold || 0,
+        },
+        {
+            label: 'All',
+            value: 'all',
+            count: stats.products?.listed || 0,
         },
     ];
 
@@ -315,20 +404,16 @@ function SellerAuctions() {
 
             <section className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm mb-8">
 
-                {/* Gold top accent */}
                 <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#C59D55] via-[#E5C47A] to-[#C59D55]" />
 
-                {/* Decorative background */}
                 <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-[#C59D55]/5 blur-3xl pointer-events-none" />
 
                 <div className="relative p-5 sm:p-7 md:p-8">
 
                     <div className="flex flex-col lg:flex-row gap-7">
 
-                        {/* Seller identity */}
                         <div className="flex flex-col md:flex-row items-center md:items-start gap-4 flex-1 min-w-0">
 
-                            {/* Avatar */}
                             <div className="relative flex-shrink-0">
 
                                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shadow-sm">
@@ -358,7 +443,6 @@ function SellerAuctions() {
 
                             </div>
 
-                            {/* Seller details */}
                             <div className="min-w-0 flex-1">
 
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
@@ -369,7 +453,6 @@ function SellerAuctions() {
 
                                 </div>
 
-                                {/* Seller metadata */}
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-2 mt-2 text-sm text-gray-500">
 
                                     {location && (
@@ -395,7 +478,6 @@ function SellerAuctions() {
 
                                 </div>
 
-                                {/* Rating */}
                                 <div className="flex flex-wrap items-center gap-4 mt-4">
 
                                     {rating > 0 && (
@@ -442,7 +524,6 @@ function SellerAuctions() {
 
                                 </div>
 
-                                {/* Bio */}
                                 {seller.bio && (
                                     <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-600">
                                         {seller.bio}
@@ -453,7 +534,6 @@ function SellerAuctions() {
 
                         </div>
 
-                        {/* Seller stats */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:w-[520px] border border-gray-100 rounded-xl overflow-hidden bg-gray-50/70">
 
                             <SellerStat
@@ -474,17 +554,10 @@ function SellerAuctions() {
                                 value={soldCount}
                             />
 
-                            {/* <SellerStat
-                                icon={<Gavel size={18} />}
-                                label="Bids"
-                                value={totalBids}
-                            /> */}
-
                         </div>
 
                     </div>
 
-                    {/* Performance bar */}
                     {successRate > 0 && (
                         <div className="mt-7 pt-6 border-t border-gray-100">
 
@@ -521,7 +594,7 @@ function SellerAuctions() {
                             </div>
 
                             <p className="text-xs text-gray-400 mt-2">
-                                Based on the seller's completed listings.
+                                Based on the seller's completed listings across auctions and products.
                             </p>
 
                         </div>
@@ -532,7 +605,7 @@ function SellerAuctions() {
 
 
             {/* =====================================================
-                LISTINGS HEADER
+                AUCTIONS SECTION
             ====================================================== */}
 
             <div className="mb-5">
@@ -542,42 +615,37 @@ function SellerAuctions() {
                     <div>
 
                         <p className="text-xs uppercase tracking-[0.16em] font-semibold text-[#C59D55] mb-1">
-                            Seller Listings
+                            Live Auctions
                         </p>
 
                         <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-                            {displayName}'s Listings
+                            Auctions by {displayName}
                         </h2>
 
                         <p className="text-sm text-gray-500 mt-1">
-                            Browse current and past listings from this seller.
+                            Browse current and past auction listings from this seller.
                         </p>
 
                     </div>
 
                     <div className="text-sm text-gray-500">
-                        {loading && auctions.length === 0
-                            ? 'Loading listings...'
-                            : `${pagination?.totalAuctions || 0} listings`}
+                        {loadingAuctions && auctions.length === 0
+                            ? 'Loading auctions...'
+                            : `${auctionPagination?.totalAuctions || 0} auctions`}
                     </div>
 
                 </div>
 
             </div>
 
-
-            {/* =====================================================
-                STATUS TABS
-            ====================================================== */}
-
             <div className="border-b border-gray-200 mb-5 overflow-x-auto">
 
-                <div className="flex items-center gap-1 min-w-max">
+                <div className="flex items-center overflow-hidden gap-1 min-w-max">
 
                     {statusTabs.map((tab) => {
 
                         const isActive =
-                            (filters.status || 'active') === tab.value;
+                            (auctionFilters.status || 'active') === tab.value;
 
                         return (
                             <button
@@ -588,10 +656,9 @@ function SellerAuctions() {
                                 className={`
                                     relative px-4 py-3 text-sm font-medium
                                     transition-colors whitespace-nowrap
-                                    ${
-                                        isActive
-                                            ? 'text-gray-900'
-                                            : 'text-gray-500 hover:text-gray-800'
+                                    ${isActive
+                                        ? 'text-gray-900'
+                                        : 'text-gray-500 hover:text-gray-800'
                                     }
                                 `}
                             >
@@ -606,10 +673,9 @@ function SellerAuctions() {
                                                 min-w-[22px] px-1.5 py-0.5
                                                 rounded-full text-[11px]
                                                 font-semibold text-center
-                                                ${
-                                                    isActive
-                                                        ? 'bg-[#C59D55]/15 text-[#A47D38]'
-                                                        : 'bg-gray-100 text-gray-500'
+                                                ${isActive
+                                                    ? 'bg-[#C59D55]/15 text-[#A47D38]'
+                                                    : 'bg-gray-100 text-gray-500'
                                                 }
                                             `}
                                         >
@@ -631,16 +697,10 @@ function SellerAuctions() {
 
             </div>
 
-
-            {/* =====================================================
-                SEARCH / SORT TOOLBAR
-            ====================================================== */}
-
             <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-4">
 
                 <div className="flex flex-col lg:flex-row gap-3">
 
-                    {/* Search */}
                     <form
                         onSubmit={handleSearch}
                         className="flex-1 flex gap-2"
@@ -655,7 +715,7 @@ function SellerAuctions() {
 
                             <input
                                 type="text"
-                                placeholder="Search this seller's listings..."
+                                placeholder="Search this seller's auctions..."
                                 value={searchTerm}
                                 onChange={(e) =>
                                     setSearchTerm(e.target.value)
@@ -697,7 +757,6 @@ function SellerAuctions() {
 
                     </form>
 
-                    {/* Right controls */}
                     <div className="flex items-center gap-2">
 
                         <div className="relative flex-1 sm:flex-none">
@@ -771,10 +830,9 @@ function SellerAuctions() {
                                 text-sm
                                 font-medium
                                 transition
-                                ${
-                                    showFilters
-                                        ? 'bg-gray-900 text-white border-gray-900'
-                                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                ${showFilters
+                                    ? 'bg-gray-900 text-white border-gray-900'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                                 }
                             `}
                         >
@@ -790,11 +848,6 @@ function SellerAuctions() {
 
             </div>
 
-
-            {/* =====================================================
-                MORE FILTERS
-            ====================================================== */}
-
             {showFilters && (
                 <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
 
@@ -806,7 +859,7 @@ function SellerAuctions() {
                             </h3>
 
                             <p className="text-xs text-gray-400 mt-0.5">
-                                Narrow down this seller's listings.
+                                Narrow down this seller's auctions.
                             </p>
                         </div>
 
@@ -823,27 +876,24 @@ function SellerAuctions() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-                        {/* Min price */}
                         <FilterInput
                             label="Minimum Price"
                             name="priceMin"
                             type="number"
-                            value={filters.priceMin || ''}
+                            value={auctionFilters.priceMin || ''}
                             onChange={handleFilterChange}
                             placeholder="e.g. 1000"
                         />
 
-                        {/* Max price */}
                         <FilterInput
                             label="Maximum Price"
                             name="priceMax"
                             type="number"
-                            value={filters.priceMax || ''}
+                            value={auctionFilters.priceMax || ''}
                             onChange={handleFilterChange}
                             placeholder="e.g. 50000"
                         />
 
-                        {/* Auction type */}
                         <div>
 
                             <label className="block text-xs font-semibold text-gray-600 mb-1.5">
@@ -854,7 +904,7 @@ function SellerAuctions() {
 
                                 <select
                                     name="auctionType"
-                                    value={filters.auctionType || ''}
+                                    value={auctionFilters.auctionType || ''}
                                     onChange={handleFilterChange}
                                     className="
                                         appearance-none
@@ -899,17 +949,12 @@ function SellerAuctions() {
                 </div>
             )}
 
-
-            {/* =====================================================
-                RESULTS META
-            ====================================================== */}
-
             <div className="flex items-center justify-between gap-3 mb-5">
 
                 <p className="text-sm text-gray-500">
 
-                    {loading && auctions.length === 0 ? (
-                        'Loading listings...'
+                    {loadingAuctions && auctions.length === 0 ? (
+                        'Loading auctions...'
                     ) : (
                         <>
                             Showing{' '}
@@ -918,36 +963,31 @@ function SellerAuctions() {
                             </span>{' '}
                             of{' '}
                             <span className="font-semibold text-gray-800">
-                                {pagination?.totalAuctions || 0}
+                                {auctionPagination?.totalAuctions || 0}
                             </span>{' '}
-                            listings
+                            auctions
                         </>
                     )}
 
                 </p>
 
-                {(filters.search ||
-                    filters.priceMin ||
-                    filters.priceMax ||
-                    filters.auctionType) && (
-                    <button
-                        type="button"
-                        onClick={resetFilters}
-                        className="text-xs font-medium text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
-                    >
-                        <RefreshCcw size={13} />
-                        Clear filters
-                    </button>
-                )}
+                {(auctionFilters.search ||
+                    auctionFilters.priceMin ||
+                    auctionFilters.priceMax ||
+                    auctionFilters.auctionType) && (
+                        <button
+                            type="button"
+                            onClick={resetFilters}
+                            className="text-xs font-medium text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                        >
+                            <RefreshCcw size={13} />
+                            Clear filters
+                        </button>
+                    )}
 
             </div>
 
-
-            {/* =====================================================
-                LISTINGS
-            ====================================================== */}
-
-            {loading && auctions.length === 0 ? (
+            {loadingAuctions && auctions.length === 0 ? (
 
                 <div className="flex justify-center py-16">
                     <LoadingSpinner size="large" />
@@ -967,11 +1007,11 @@ function SellerAuctions() {
                     </div>
 
                     <h3 className="text-xl font-semibold text-gray-800">
-                        No listings found
+                        No auctions found
                     </h3>
 
                     <p className="text-sm text-gray-500 max-w-md mx-auto mt-2">
-                        This seller doesn't have any listings matching
+                        This seller doesn't have any auctions matching
                         your current filters.
                     </p>
 
@@ -1017,16 +1057,15 @@ function SellerAuctions() {
 
                     </div>
 
-                    {/* Load More */}
-                    {pagination?.currentPage <
-                        pagination?.totalPages && (
+                    {auctionPagination?.currentPage <
+                        auctionPagination?.totalPages && (
 
-                        <div className="flex justify-center mt-10">
+                            <div className="flex justify-center mt-10">
 
-                            <button
-                                onClick={loadMoreAuctions}
-                                disabled={loadingMore}
-                                className="
+                                <button
+                                    onClick={loadMoreAuctions}
+                                    disabled={loadingMoreAuctions}
+                                    className="
                                     group
                                     inline-flex
                                     items-center
@@ -1043,42 +1082,503 @@ function SellerAuctions() {
                                     disabled:cursor-not-allowed
                                     transition
                                 "
-                            >
+                                >
 
-                                {loadingMore ? (
-                                    <>
-                                        <Loader
-                                            size={17}
-                                            className="animate-spin"
-                                        />
-                                        Loading...
-                                    </>
-                                ) : (
-                                    <>
-                                        Load More
+                                    {loadingMoreAuctions ? (
+                                        <>
+                                            <Loader
+                                                size={17}
+                                                className="animate-spin"
+                                            />
+                                            Loading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Load More
 
-                                        <span className="text-xs bg-white/10 px-2 py-1 rounded-full">
-                                            {Math.max(
-                                                0,
-                                                (pagination.totalAuctions || 0) -
+                                            <span className="text-xs bg-white/10 px-2 py-1 rounded-full">
+                                                {Math.max(
+                                                    0,
+                                                    (auctionPagination.totalAuctions || 0) -
                                                     auctions.length
-                                            )}
-                                        </span>
+                                                )}
+                                            </span>
 
-                                        <ArrowUpRight
-                                            size={16}
-                                            className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
-                                        />
-                                    </>
-                                )}
+                                            <ArrowUpRight
+                                                size={16}
+                                                className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                                            />
+                                        </>
+                                    )}
 
-                            </button>
+                                </button>
 
-                        </div>
-                    )}
+                            </div>
+                        )}
 
                 </>
             )}
+
+
+            {/* =====================================================
+                PRODUCTS SECTION
+            ====================================================== */}
+
+            <section className="mt-16">
+
+                <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+
+                    <div>
+
+                        <p className="text-xs uppercase tracking-[0.16em] font-semibold text-[#C59D55] mb-1">
+                            Buy Now
+                        </p>
+
+                        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+                            Products by {displayName}
+                        </h2>
+
+                        <p className="text-sm text-gray-500 mt-1">
+                            Browse products available for instant purchase from this seller.
+                        </p>
+
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+                        {loadingProducts && products.length === 0
+                            ? 'Loading products...'
+                            : `${productPagination?.totalAuctions || 0} products`}
+                    </div>
+
+                </div>
+
+                <div className="border-b border-gray-200 mb-5 overflow-x-auto">
+
+                    <div className="flex items-center overflow-hidden gap-1 min-w-max">
+
+                        {productStatusTabs.map((tab) => {
+
+                            const isActive = productStatus === tab.value;
+
+                            return (
+                                <button
+                                    key={tab.value || 'all'}
+                                    onClick={() =>
+                                        handleProductStatusChange(tab.value)
+                                    }
+                                    className={`
+                                    relative px-4 py-3 text-sm font-medium
+                                    transition-colors whitespace-nowrap
+                                    ${isActive
+                                            ? 'text-gray-900'
+                                            : 'text-gray-500 hover:text-gray-800'
+                                        }
+                                `}
+                                >
+
+                                    <span className="flex items-center gap-2">
+
+                                        {tab.label}
+
+                                        {typeof tab.count === 'number' && (
+                                            <span
+                                                className={`
+                                                min-w-[22px] px-1.5 py-0.5
+                                                rounded-full text-[11px]
+                                                font-semibold text-center
+                                                ${isActive
+                                                        ? 'bg-[#C59D55]/15 text-[#A47D38]'
+                                                        : 'bg-gray-100 text-gray-500'
+                                                    }
+                                            `}
+                                            >
+                                                {tab.count}
+                                            </span>
+                                        )}
+
+                                    </span>
+
+                                    {isActive && (
+                                        <span className="absolute left-2 right-2 -bottom-[1px] h-0.5 bg-[#C59D55] rounded-full" />
+                                    )}
+
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Product toolbar */}
+                <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-4">
+
+                    <div className="flex flex-col lg:flex-row gap-3">
+
+                        <form
+                            onSubmit={handleProductSearch}
+                            className="flex-1 flex gap-2"
+                        >
+
+                            <div className="relative flex-1">
+
+                                <Search
+                                    size={19}
+                                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                                />
+
+                                <input
+                                    type="text"
+                                    placeholder="Search this seller's products..."
+                                    value={productSearchTerm}
+                                    onChange={(e) =>
+                                        setProductSearchTerm(e.target.value)
+                                    }
+                                    className="
+                                        w-full
+                                        pl-10 pr-4 py-2.5
+                                        bg-gray-50
+                                        border border-gray-200
+                                        rounded-lg
+                                        text-sm
+                                        text-gray-900
+                                        placeholder:text-gray-400
+                                        focus:outline-none
+                                        focus:ring-2
+                                        focus:ring-[#C59D55]/20
+                                        focus:border-[#C59D55]
+                                        transition
+                                    "
+                                />
+
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="
+                                    px-5 py-2.5
+                                    rounded-lg
+                                    bg-gray-900
+                                    text-white
+                                    text-sm
+                                    font-medium
+                                    hover:bg-gray-800
+                                    transition
+                                "
+                            >
+                                Search
+                            </button>
+
+                        </form>
+
+                        <div className="flex items-center gap-2">
+
+                            <div className="relative flex-1 sm:flex-none">
+
+                                <select
+                                    value={productSortBy}
+                                    onChange={handleProductSortChange}
+                                    className="
+                                        appearance-none
+                                        w-full
+                                        sm:w-auto
+                                        min-w-[180px]
+                                        pl-3 pr-9 py-2.5
+                                        bg-gray-50
+                                        border border-gray-200
+                                        rounded-lg
+                                        text-sm
+                                        text-gray-700
+                                        focus:outline-none
+                                        focus:ring-2
+                                        focus:ring-[#C59D55]/20
+                                        focus:border-[#C59D55]
+                                    "
+                                >
+                                    <option value="createdAt-desc">
+                                        Newest First
+                                    </option>
+
+                                    <option value="createdAt-asc">
+                                        Oldest First
+                                    </option>
+
+                                    <option value="currentPrice-desc">
+                                        Price: High to Low
+                                    </option>
+
+                                    <option value="currentPrice-asc">
+                                        Price: Low to High
+                                    </option>
+                                </select>
+
+                                <ChevronDown
+                                    size={16}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                                />
+
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setShowProductFilters((prev) => !prev)
+                                }
+                                className={`
+                                    inline-flex
+                                    items-center
+                                    justify-center
+                                    gap-2
+                                    px-3.5
+                                    py-2.5
+                                    rounded-lg
+                                    border
+                                    text-sm
+                                    font-medium
+                                    transition
+                                    ${showProductFilters
+                                        ? 'bg-gray-900 text-white border-gray-900'
+                                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                    }
+                                `}
+                            >
+                                <SlidersHorizontal size={17} />
+                                <span className="hidden sm:inline">
+                                    Filters
+                                </span>
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                {/* Product More Filters panel */}
+                {showProductFilters && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
+
+                        <div className="flex items-center justify-between mb-4">
+
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-900">
+                                    More Filters
+                                </h3>
+
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    Narrow down this seller's products.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={resetProductFilters}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition"
+                            >
+                                <RefreshCcw size={13} />
+                                Reset
+                            </button>
+
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+
+                            <FilterInput
+                                label="Minimum Price"
+                                name="priceMin"
+                                type="number"
+                                value={productFilters.priceMin || ''}
+                                onChange={handleProductFilterChange}
+                                placeholder="e.g. 100"
+                            />
+
+                            <FilterInput
+                                label="Maximum Price"
+                                name="priceMax"
+                                type="number"
+                                value={productFilters.priceMax || ''}
+                                onChange={handleProductFilterChange}
+                                placeholder="e.g. 5000"
+                            />
+
+                        </div>
+
+                    </div>
+                )}
+
+                {/* Product results meta */}
+                <div className="flex items-center justify-between gap-3 mb-5">
+
+                    <p className="text-sm text-gray-500">
+
+                        {loadingProducts && products.length === 0 ? (
+                            'Loading products...'
+                        ) : (
+                            <>
+                                Showing{' '}
+                                <span className="font-semibold text-gray-800">
+                                    {products.length}
+                                </span>{' '}
+                                of{' '}
+                                <span className="font-semibold text-gray-800">
+                                    {productPagination?.totalAuctions || 0}
+                                </span>{' '}
+                                products
+                            </>
+                        )}
+
+                    </p>
+
+                    {(productFilters.search ||
+                        productFilters.priceMin ||
+                        productFilters.priceMax) && (
+                            <button
+                                type="button"
+                                onClick={resetProductFilters}
+                                className="text-xs font-medium text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                            >
+                                <RefreshCcw size={13} />
+                                Clear filters
+                            </button>
+                        )}
+
+                </div>
+
+                {loadingProducts && products.length === 0 ? (
+
+                    <div className="flex justify-center py-16">
+                        <LoadingSpinner size="large" />
+                    </div>
+
+                ) : products.length === 0 ? (
+
+                    <div className="border border-gray-200 bg-white rounded-2xl py-16 px-6 text-center">
+
+                        <div className="w-16 h-16 mx-auto rounded-2xl bg-gray-100 flex items-center justify-center mb-5">
+
+                            <Package
+                                size={28}
+                                className="text-gray-400"
+                            />
+
+                        </div>
+
+                        <h3 className="text-xl font-semibold text-gray-800">
+                            No products found
+                        </h3>
+
+                        <p className="text-sm text-gray-500 max-w-md mx-auto mt-2">
+                            This seller doesn't have any products matching your current filters.
+                        </p>
+
+                        {(productFilters.search ||
+                            productFilters.priceMin ||
+                            productFilters.priceMax ||
+                            productStatus !== 'active') && (
+                                <button
+                                    type="button"
+                                    onClick={resetProductFilters}
+                                    className="
+                                    inline-flex
+                                    items-center
+                                    gap-2
+                                    mt-6
+                                    px-5
+                                    py-2.5
+                                    rounded-lg
+                                    border
+                                    border-gray-200
+                                    bg-white
+                                    text-sm
+                                    font-medium
+                                    text-gray-700
+                                    hover:bg-gray-50
+                                    transition
+                                "
+                                >
+                                    <RefreshCcw size={15} />
+                                    Reset Filters
+                                </button>
+                            )}
+
+                    </div>
+
+                ) : (
+
+                    <>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+
+                            {products.map((product) => (
+                                <ProductCard
+                                    key={product._id}
+                                    product={product}
+                                />
+                            ))}
+
+                        </div>
+
+                        {productPagination?.currentPage <
+                            productPagination?.totalPages && (
+
+                                <div className="flex justify-center mt-10">
+
+                                    <button
+                                        onClick={loadMoreProducts}
+                                        disabled={loadingMoreProducts}
+                                        className="
+                                        group
+                                        inline-flex
+                                        items-center
+                                        gap-2
+                                        px-6
+                                        py-3
+                                        rounded-lg
+                                        bg-gray-900
+                                        text-white
+                                        text-sm
+                                        font-medium
+                                        hover:bg-gray-800
+                                        disabled:opacity-50
+                                        disabled:cursor-not-allowed
+                                        transition
+                                    "
+                                    >
+
+                                        {loadingMoreProducts ? (
+                                            <>
+                                                <Loader
+                                                    size={17}
+                                                    className="animate-spin"
+                                                />
+                                                Loading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                Load More
+
+                                                <span className="text-xs bg-white/10 px-2 py-1 rounded-full">
+                                                    {Math.max(
+                                                        0,
+                                                        (productPagination.totalAuctions || 0) -
+                                                        products.length
+                                                    )}
+                                                </span>
+
+                                                <ArrowUpRight
+                                                    size={16}
+                                                    className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+                                                />
+                                            </>
+                                        )}
+
+                                    </button>
+
+                                </div>
+                            )}
+
+                    </>
+                )}
+
+            </section>
 
         </Container>
     );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const languages = [
     { code: "en", name: "English", flag: "https://flagcdn.com/us.svg" },
@@ -8,17 +8,16 @@ const languages = [
 export default function LanguageSwitcher({ isScrolled }) {
     const [open, setOpen] = useState(false);
     const [current, setCurrent] = useState(languages[0]);
+    const containerRef = useRef(null);
 
     // Check for existing translation on mount
     useEffect(() => {
-        // Check if there's a language cookie
         const match = document.cookie.match(/googtrans=\/en\/([^;]+)/);
         if (match) {
             const lang = languages.find(l => l.code === match[1]);
             if (lang) setCurrent(lang);
         }
 
-        // Remove Google Translate banner
         const removeBanner = () => {
             document.querySelectorAll(".goog-te-banner-frame").forEach(el => {
                 el.style.display = "none";
@@ -28,24 +27,27 @@ export default function LanguageSwitcher({ isScrolled }) {
 
         removeBanner();
         const interval = setInterval(removeBanner, 500);
-
         return () => clearInterval(interval);
     }, []);
 
+    // Outside click — scoped to THIS instance via ref
     useEffect(() => {
         const handleClickOutside = (event) => {
-            const langContainer = document.querySelector('.lang-container');
-            if (langContainer && !langContainer.contains(event.target)) {
+            if (
+                containerRef.current &&
+                !containerRef.current.contains(event.target)
+            ) {
                 setOpen(false);
             }
         };
 
         if (open) {
-            document.addEventListener('mousedown', handleClickOutside);
+            // pointerdown covers both mouse and touch reliably
+            document.addEventListener("pointerdown", handleClickOutside);
         }
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener("pointerdown", handleClickOutside);
         };
     }, [open]);
 
@@ -53,70 +55,52 @@ export default function LanguageSwitcher({ isScrolled }) {
         setCurrent(lang);
         setOpen(false);
 
-        // For English - reset translation
         if (lang.code === "en") {
             resetTranslation();
             return;
         }
 
-        // For other languages - trigger translation
         triggerTranslation(lang.code);
     }
 
     function resetTranslation() {
-        // Clear the googtrans cookie
         const domain = window.location.hostname;
         const paths = ['/', '/en/', '/us/', '/home/'];
 
         paths.forEach(path => {
-            // Clear for main domain
             document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}; domain=${domain}`;
-
-            // Clear for root domain
             const rootDomain = domain.split('.').slice(-2).join('.');
             document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}; domain=${rootDomain}`;
-
-            // Without domain
             document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}`;
         });
 
-        // Reload the page without translations
         setTimeout(() => {
             window.location.reload();
         }, 200);
     }
 
     function triggerTranslation(targetLang) {
-        // Wait for Google Translate to be ready
         const attemptTranslation = (retries = 10) => {
             const select = document.querySelector(".goog-te-combo");
 
             if (!select) {
                 if (retries > 0) {
-                    console.log("Waiting for Google Translate...", retries);
                     setTimeout(() => attemptTranslation(retries - 1), 500);
                 } else {
                     console.error("Google Translate not loaded");
-                    // Force reload and try again
                     window.location.reload();
                 }
                 return;
             }
 
-            // Set the language
             select.value = targetLang;
-
-            // Trigger change event
             const event = new Event("change", { bubbles: true });
             select.dispatchEvent(event);
 
-            // Also try to trigger via Google's internal methods
             if (window.google && window.google.translate) {
                 try {
-                    // This sometimes works better than the combo box
                     const translateElement = document.querySelector('.goog-te-gadget-simple');
                     if (translateElement) {
-                        // Force a re-render
                         translateElement.style.display = 'none';
                         setTimeout(() => {
                             translateElement.style.display = '';
@@ -128,12 +112,11 @@ export default function LanguageSwitcher({ isScrolled }) {
             }
         };
 
-        // Start the translation attempt
         attemptTranslation();
     }
 
     return (
-        <div className="lang-container relative">
+        <div ref={containerRef} className="lang-container relative">
             <button
                 className="lang-button flex items-center gap-1 px-2 py-1 md:py-1.5 md:px-3 border rounded-md"
                 onClick={() => setOpen(!open)}
@@ -150,12 +133,18 @@ export default function LanguageSwitcher({ isScrolled }) {
             </button>
 
             {open && (
-                <div className="lang-dropdown absolute top-full right-0 mt-1 bg-white border rounded-md shadow-lg z-50">
+                <div className="lang-dropdown absolute top-full right-0 mt-1 bg-white border rounded-md shadow-lg z-50 min-w-[85px]">
                     {languages.map((lang) => (
                         <div
                             key={lang.code}
                             className="lang-option flex items-center gap-2 px-4 py-2 hover:bg-gray-50 cursor-pointer whitespace-nowrap"
-                            onClick={() => changeLanguage(lang)}
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                changeLanguage(lang);
+                            }}
+                            onClick={(e) => {
+                                if (e.detail === 0) changeLanguage(lang);
+                            }}
                         >
                             <img
                                 src={lang.flag}
@@ -163,7 +152,16 @@ export default function LanguageSwitcher({ isScrolled }) {
                                 className="w-7 h-5 object-cover rounded-sm border"
                                 loading="lazy"
                             />
-                            <span>{lang.name}</span>
+
+                            {/* Mobile: show language code */}
+                            <span className="inline sm:hidden text-xs font-semibold uppercase">
+                                {lang.code}
+                            </span>
+
+                            {/* Desktop: show full language name */}
+                            <span className="hidden sm:inline">
+                                {lang.name}
+                            </span>
                         </div>
                     ))}
                 </div>

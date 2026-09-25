@@ -156,7 +156,7 @@ function SoldProducts() {
                                     </div>
                                     <div className="bg-green-50 border border-green-200 text-green-800 px-5 py-4 rounded-xl">
                                         <div className="text-sm font-medium">Final Price</div>
-                                        <div className="text-2xl font-bold">{formatCurrency(selectedProduct.winningBid)} <span className="text-[12px]">(+{formatCurrency(selectedAuction?.commissionAmount)})</span></div>
+                                        <div className="text-2xl font-bold">{formatCurrency(selectedProduct.winningBid)} <span className="text-[12px]">(+{formatCurrency(selectedProduct?.commissionAmount)})</span></div>
                                         <div className="text-xs mt-1">Product sold</div>
                                     </div>
                                 </div>

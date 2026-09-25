@@ -64,6 +64,8 @@ function Hero() {
 
         if (searchType === "seller") {
             navigate(`/sellers?search=${search}`);
+        } else if (searchType === "product") {
+            navigate(`/products?search=${search}`);
         } else {
             navigate(`/auctions?search=${search}`);
         }
@@ -188,6 +190,9 @@ function Hero() {
                                         >
                                             <option value="auction" className="bg-[#11161B]">
                                                 Auctions
+                                            </option>
+                                            <option value="product" className="bg-[#11161B]">
+                                                Products
                                             </option>
                                             <option value="seller" className="bg-[#11161B]">
                                                 Sellers

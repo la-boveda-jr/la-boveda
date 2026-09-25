@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Banknote, MessageSquare, Package, Hand } from "lucide-react";
+import { X, Banknote, MessageSquare } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 
 const MakeOfferModal = ({
@@ -23,7 +23,10 @@ const MakeOfferModal = ({
         const getCommission = async () => {
             try {
                 const { data } = await axiosInstance.get("/api/v1/commissions");
-                const commission = data?.data?.commission;
+
+                // New structure: { auction, product }
+                // Offers are made on auctions → use AUCTION scope
+                const commission = data?.data?.auction;
                 if (!commission) return;
 
                 setCommissionType(commission.commissionType);
@@ -67,19 +70,6 @@ const MakeOfferModal = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg w-full max-w-md">
 
-                {/* Header */}
-                {/* <div className="flex justify-between items-center p-6 border-b">
-                    <h3 className="text-xl font-semibold text-gray-800">
-                        Make an Offer
-                    </h3>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700"
-                    >
-                        <X size={24} />
-                    </button>
-                </div> */}
-
                 <form onSubmit={handleSubmit} className="p-6">
 
                     {/* Offer Amount */}
@@ -104,9 +94,11 @@ const MakeOfferModal = ({
                             />
                         </div>
 
-                        {auction?.startPrice && auction?.startPrice > 0 && <p className="text-sm text-gray-500 mt-1">
-                            Minimum offer: {formatUSD(auction?.startPrice)}
-                        </p>}
+                        {auction?.startPrice && auction?.startPrice > 0 && (
+                            <p className="text-sm text-gray-500 mt-1">
+                                Minimum offer: {formatUSD(auction?.startPrice)}
+                            </p>
+                        )}
                     </div>
 
                     {/* Fee Breakdown */}
@@ -118,7 +110,14 @@ const MakeOfferModal = ({
                             </div>
 
                             <div className="flex justify-between text-gray-700">
-                                <span>Service Fee</span>
+                                <span>
+                                    Service Fee
+                                    {commissionType === "percentage" && commissionValue > 0 && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                            ({commissionValue}%)
+                                        </span>
+                                    )}
+                                </span>
                                 <span>{formatUSD(serviceFee)}</span>
                             </div>
 

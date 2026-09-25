@@ -433,3 +433,45 @@ const getAdminUser = async () => {
     if (!admin) throw new Error("No admin user found");
     return admin;
 };
+
+// GET communications for the logged-in bidder
+export const getBidderCommunications = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const communications = await Communication.find({ winningBidder: userId })
+            .populate("auction", "title categories finalPrice status auctionType photos")
+            .populate("seller", "username firstName lastName email")
+            .populate("winningBidder", "username firstName lastName email")
+            .sort({ lastMessageAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            data: communications,
+        });
+    } catch (error) {
+        console.error("Get bidder communications error:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+// GET communications for the logged-in seller
+export const getSellerCommunications = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const communications = await Communication.find({ seller: userId })
+            .populate("auction", "title categories finalPrice status auctionType photos")
+            .populate("seller", "username firstName lastName email")
+            .populate("winningBidder", "username firstName lastName email")
+            .sort({ lastMessageAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            data: communications,
+        });
+    } catch (error) {
+        console.error("Get seller communications error:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};

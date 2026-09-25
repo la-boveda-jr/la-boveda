@@ -65,7 +65,7 @@ const ImageLightBox = ({ images = [], captions = [], auctionType = '', isReserve
 
         if (auctionType === 'buy_now') {
             badges.push({
-                label: 'Buy Now Available',
+                label: 'Instant Purchase',
                 icon: ShoppingCart,
                 color: 'bg-blue-100 text-blue-700 border-blue-200'
             });

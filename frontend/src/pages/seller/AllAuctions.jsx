@@ -101,7 +101,8 @@ function AllAuctions() {
             const params = new URLSearchParams({
                 page: page.toString(),
                 limit: '12',
-                status: ''
+                status: '',
+                context: 'auction'
             });
 
             const { data } = await axiosInstance.get(`/api/v1/auctions/user/my-auctions?${params}`);

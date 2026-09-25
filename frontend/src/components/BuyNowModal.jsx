@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle, XCircle, Package, AlertCircle, Gift } from "lucide-react";
+import { CheckCircle, XCircle, Package, Gift } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance";
 
 const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway }) => {
@@ -19,7 +19,10 @@ const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway 
         const getCommission = async () => {
             try {
                 const { data } = await axiosInstance.get("/api/v1/commissions");
-                const commission = data?.data?.commission;
+
+                // New structure: { auction, product }
+                // Buy Now purchases use the PRODUCT commission scope
+                const commission = data?.data?.product || data?.data?.auction;
 
                 if (!commission) return;
 
@@ -59,7 +62,7 @@ const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway 
             <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
                 <div className="p-6">
 
-                    {/* Header - Changes based on giveaway or buy now */}
+                    {/* Header */}
                     <div className="flex items-center gap-3 mb-4">
                         <div className={`p-2 rounded-full ${isGiveaway ? 'bg-purple-100' : 'bg-green-100'}`}>
                             {isGiveaway ? (
@@ -88,7 +91,7 @@ const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway 
                         </div>
                     )}
 
-                    {/* Price Breakdown - Only show for non-giveaway */}
+                    {/* Price Breakdown */}
                     {!isGiveaway && (
                         <div className="bg-gray-50 p-4 rounded-lg mb-6 space-y-3">
                             <div className="flex justify-between text-gray-700">
@@ -99,7 +102,14 @@ const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway 
                             </div>
 
                             <div className="flex justify-between text-gray-700">
-                                <span>Service Fee</span>
+                                <span>
+                                    Service Fee
+                                    {commissionType === "percentage" && commissionValue > 0 && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                            ({commissionValue}%)
+                                        </span>
+                                    )}
+                                </span>
                                 <span className="font-semibold">
                                     {formatUSD(serviceFee)}
                                 </span>
@@ -112,39 +122,23 @@ const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway 
                         </div>
                     )}
 
-                    {/* Action List - Updated for giveaway */}
+                    {/* Action List */}
                     <div className="mb-6">
-                        <p className="font-medium text-gray-700 mb-2">
-                            {isGiveaway ? 'This will:' : 'This will:'}
-                        </p>
+                        <p className="font-medium text-gray-700 mb-2">This will:</p>
                         <ul className="space-y-2 text-sm text-gray-600">
                             <li className="flex items-center gap-2">
                                 <CheckCircle className="h-4 w-4 text-green-500" />
-                                {isGiveaway ? 'Claim the item immediately' : 'End the auction immediately'}
-                            </li>
-                            <li className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                {isGiveaway ? 'Mark you as the winner' : 'Declare you as the winner'}
-                            </li>
-                            {!isGiveaway && (
-                                <li className="flex items-center gap-2">
-                                    <CheckCircle className="h-4 w-4 text-green-500" />
-                                    Final price locked at {formatUSD(auction?.buyNowPrice)}
-                                </li>
-                            )}
-                            <li className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                {isGiveaway ? 'Item marked as claimed' : 'Reject all pending offers (if any)'}
+                                {isGiveaway ? 'Claim the item immediately' : 'Mark the product as sold and declare you as the buyer.'}
                             </li>
                         </ul>
                     </div>
 
                     {/* Buttons */}
-                    <div className="flex gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button
                             onClick={onClose}
                             disabled={loading}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 order-2 sm:order-1"
                         >
                             <XCircle className="h-5 w-5" />
                             Cancel
@@ -153,9 +147,9 @@ const BuyNowModal = ({ isOpen, onClose, onConfirm, auction, loading, isGiveaway 
                         <button
                             onClick={onConfirm}
                             disabled={loading}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-white rounded-lg transition-colors disabled:opacity-50 ${isGiveaway
-                                    ? 'bg-purple-600 hover:bg-purple-700'
-                                    : 'bg-green-600 hover:bg-green-700'
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-white rounded-lg transition-colors disabled:opacity-50 order-1 sm:order-2 ${isGiveaway
+                                ? 'bg-purple-600 hover:bg-purple-700'
+                                : 'bg-green-600 hover:bg-green-700'
                                 }`}
                         >
                             {loading ? (

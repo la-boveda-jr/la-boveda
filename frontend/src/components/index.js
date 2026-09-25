@@ -61,6 +61,11 @@ import HowItWorks from "./HowItWorks";
 import TestimonialSection from "./TestimonialSection";
 import LanguageSwitcher from "./LanguageSwitcher";
 import SellerCard from "./SellerCard";
+import ProductStatusCard from "./ProductStatusCard";
+import ProductCard from "./ProductCard";
+import HomeProductsSection from "./HomeProductsSection";
+import HomeAuctionsSection from "./HomeAuctionsSection";
+import ProductSpecificationSection from "./ProductSpecificationSection";
 
 export {
     Container,
@@ -126,4 +131,9 @@ export {
     TestimonialSection,
     LanguageSwitcher,
     SellerCard,
+    ProductStatusCard,
+    ProductCard,
+    HomeProductsSection,
+    HomeAuctionsSection,
+    ProductSpecificationSection,
 }

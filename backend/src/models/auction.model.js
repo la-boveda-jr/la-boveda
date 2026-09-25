@@ -464,56 +464,6 @@ auctionSchema.methods.placeBid = async function (
   return this.save();
 };
 
-// NEW: Method to buy now
-// auctionSchema.methods.buyNow = async function (buyerId, buyerUsername) {
-//   const now = new Date();
-
-//   if (this.status !== "active") {
-//     throw new Error("Auction is not active");
-//   }
-
-//   if (!this.buyNowPrice) {
-//     throw new Error("Buy Now is not available for this auction");
-//   }
-
-//   if (now >= this.endDate) {
-//     throw new Error("Auction has ended");
-//   }
-
-//   // Add buy now as a bid with special flag
-//   this.bids.push({
-//     bidder: buyerId,
-//     bidderUsername: buyerUsername,
-//     amount: this.buyNowPrice,
-//     timestamp: now,
-//     isBuyNow: true,
-//   });
-
-//   // Set auction as sold
-//   this.currentPrice = this.buyNowPrice;
-//   this.currentBidder = buyerId;
-//   // this.bidCount += 1;
-//   this.winner = buyerId;
-//   this.finalPrice = this.buyNowPrice;
-//   this.status = "sold";
-//   this.endDate = now; // End auction immediately
-
-//   // Reject all pending offers (if any)
-//   this.offers.forEach((offer) => {
-//     if (offer.status === "pending") {
-//       offer.status = "rejected";
-//       offer.sellerResponse = "Offer rejected - item purchased via Buy Now";
-//     }
-//   });
-
-//   // Cancel any scheduled jobs
-//   await agendaService.cancelAuctionJobs(this._id);
-
-//   return this.save();
-// };
-
-// In auction.model.js - find the buyNow method and update it
-
 auctionSchema.methods.buyNow = async function (buyerId, buyerUsername) {
   const now = new Date();
 
@@ -521,20 +471,23 @@ auctionSchema.methods.buyNow = async function (buyerId, buyerUsername) {
     throw new Error("Auction is not active");
   }
 
-  // MODIFIED: Allow giveaways to proceed without buyNowPrice
+  // Only check buyNowPrice for non-giveaway
   if (this.auctionType !== "giveaway") {
-    // Only check buyNowPrice for non-giveaway auctions
     if (!this.buyNowPrice) {
       throw new Error("Buy Now is not available for this auction");
     }
   }
 
-  if (now >= this.endDate && this.auctionType !== "giveaway") {
-    // Giveaways don't have end date restrictions
+  // Products (buy_now) have no endDate — skip the check
+  if (
+    this.endDate &&
+    now >= this.endDate &&
+    this.auctionType !== "giveaway" &&
+    this.auctionType !== "buy_now"
+  ) {
     throw new Error("Auction has ended");
   }
 
-  // Add buy now as a bid with special flag
   this.bids.push({
     bidder: buyerId,
     bidderUsername: buyerUsername,
@@ -543,23 +496,22 @@ auctionSchema.methods.buyNow = async function (buyerId, buyerUsername) {
     isBuyNow: true,
   });
 
-  // Set auction as sold
   this.currentPrice = this.auctionType === "giveaway" ? 0 : this.buyNowPrice;
   this.currentBidder = buyerId;
   this.winner = buyerId;
   this.finalPrice = this.auctionType === "giveaway" ? 0 : this.buyNowPrice;
   this.status = "sold";
-  this.endDate = now; // End auction immediately
+  if (this.endDate) this.endDate = now;
 
-  // Calculate and store commission (only for non-giveaway)
+  // Commission uses product scope for buy_now auctions
   if (this.auctionType !== "giveaway") {
-    const commissionData = await calculateCommission(this.finalPrice);
+    const scope = this.auctionType === "buy_now" ? "product" : "auction";
+    const commissionData = await calculateCommission(this.finalPrice, scope);
     this.commissionAmount = commissionData.commissionAmount;
     this.commissionType = commissionData.commissionType;
     this.commissionValue = commissionData.commissionValue;
   }
 
-  // Reject all pending offers (if any)
   this.offers.forEach((offer) => {
     if (offer.status === "pending") {
       offer.status = "rejected";
@@ -567,7 +519,6 @@ auctionSchema.methods.buyNow = async function (buyerId, buyerUsername) {
     }
   });
 
-  // Cancel any scheduled jobs
   await agendaService.cancelAuctionJobs(this._id);
 
   return this.save();
@@ -655,7 +606,8 @@ auctionSchema.methods.respondToOffer = async function (
       this.endDate = new Date(); // End auction immediately
 
       // Calculate and store commission
-      const commissionData = await calculateCommission(this.finalPrice);
+      const scope = this.auctionType === "buy_now" ? "product" : "auction";
+const commissionData = await calculateCommission(this.finalPrice, scope);
       this.commissionAmount = commissionData.commissionAmount;
       this.commissionType = commissionData.commissionType;
       this.commissionValue = commissionData.commissionValue;
@@ -723,7 +675,8 @@ auctionSchema.methods.respondToCounterOffer = async function (offerId, accept) {
     this.endDate = new Date();
 
     // Calculate and store commission
-    const commissionData = await calculateCommission(this.finalPrice);
+    const scope = this.auctionType === "buy_now" ? "product" : "auction";
+const commissionData = await calculateCommission(this.finalPrice, scope);
     this.commissionAmount = commissionData.commissionAmount;
     this.commissionType = commissionData.commissionType;
     this.commissionValue = commissionData.commissionValue;
@@ -802,11 +755,9 @@ auctionSchema.methods.reactivateAndAcceptOffer = async function (
   // Reactivate and accept the offer
   const previousResponse = offer.sellerResponse || "";
   offer.status = "accepted";
-  offer.sellerResponse = `${
-    previousResponse ? previousResponse + " | " : ""
-  }Reactivated and accepted by ${
-    isAdmin ? "admin" : "seller"
-  } on ${new Date().toLocaleDateString()}`;
+  offer.sellerResponse = `${previousResponse ? previousResponse + " | " : ""
+    }Reactivated and accepted by ${isAdmin ? "admin" : "seller"
+    } on ${new Date().toLocaleDateString()}`;
   offer.reactivatedAt = new Date();
 
   // Update auction details
@@ -818,7 +769,8 @@ auctionSchema.methods.reactivateAndAcceptOffer = async function (
   this.endDate = new Date();
 
   // Calculate and store commission
-  const commissionData = await calculateCommission(this.finalPrice);
+  const scope = this.auctionType === "buy_now" ? "product" : "auction";
+const commissionData = await calculateCommission(this.finalPrice, scope);
   this.commissionAmount = commissionData.commissionAmount;
   this.commissionType = commissionData.commissionType;
   this.commissionValue = commissionData.commissionValue;
@@ -898,71 +850,13 @@ auctionSchema.methods.isReserveMet = function () {
   return this.currentPrice >= this.reservePrice;
 };
 
-// Method to end auction
-// auctionSchema.methods.endAuction = async function () {
-//   if (this.status !== "active") return this;
-
-//   const now = new Date();
-//   let wasSold = false;
-
-//   // For standard auctions OR reserve auctions that met reserve
-//   if (this.bidCount > 0) {
-//     if (this.auctionType === "standard") {
-//       // Standard auction with bids - sold
-//       this.status = "sold";
-//       this.winner = this.currentBidder;
-//       this.finalPrice = this.currentPrice;
-//       wasSold = true;
-//     } else if (this.auctionType === "reserve") {
-//       // Reserve auction - check if reserve is met
-//       if (this.isReserveMet()) {
-//         this.status = "sold";
-//         this.winner = this.currentBidder;
-//         this.finalPrice = this.currentPrice;
-//         wasSold = true;
-//       } else {
-//         this.status = "reserve_not_met";
-//       }
-//     } else if (this.auctionType === "buy_now") {
-//       // Buy Now auction that ended normally (not via Buy Now)
-//       if (this.bidCount > 0) {
-//         this.status = "sold";
-//         this.winner = this.currentBidder;
-//         this.finalPrice = this.currentPrice;
-//         wasSold = true;
-//       } else {
-//         this.status = "ended";
-//       }
-//     }
-//   } else {
-//     // No bids - just end it
-//     this.status = "ended";
-//   }
-
-//   // Set actual end time
-//   this.endDate = now;
-
-//   // Also reject any pending offers when auction ends
-//   this.offers.forEach((offer) => {
-//     if (offer.status === "pending") {
-//       offer.status = "expired";
-//       offer.sellerResponse = "Offer expired - auction ended";
-//     }
-//   });
-
-//   await this.save();
-
-//   // Return result object
-//   return {
-//     wasSold,
-//     winner: this.winner,
-//     finalPrice: this.finalPrice,
-//     newStatus: this.status,
-//   };
-// };
-
 auctionSchema.methods.endAuction = async function () {
   if (this.status !== "active") return this;
+
+  // Products should never auto-end; they only end when purchased.
+  if (this.auctionType === "buy_now" || this.auctionType === "giveaway") {
+    return this;
+  }
 
   const now = new Date();
   let wasSold = false;
@@ -977,7 +871,8 @@ auctionSchema.methods.endAuction = async function () {
       wasSold = true;
 
       // Calculate and store commission
-      const commissionData = await calculateCommission(this.finalPrice);
+      const scope = this.auctionType === "buy_now" ? "product" : "auction";
+      const commissionData = await calculateCommission(this.finalPrice, scope);
       this.commissionAmount = commissionData.commissionAmount;
       this.commissionType = commissionData.commissionType;
       this.commissionValue = commissionData.commissionValue;
@@ -990,7 +885,8 @@ auctionSchema.methods.endAuction = async function () {
         wasSold = true;
 
         // Calculate and store commission
-        const commissionData = await calculateCommission(this.finalPrice);
+        const scope = this.auctionType === "buy_now" ? "product" : "auction";
+        const commissionData = await calculateCommission(this.finalPrice, scope);
         this.commissionAmount = commissionData.commissionAmount;
         this.commissionType = commissionData.commissionType;
         this.commissionValue = commissionData.commissionValue;
@@ -1006,7 +902,8 @@ auctionSchema.methods.endAuction = async function () {
         wasSold = true;
 
         // Calculate and store commission
-        const commissionData = await calculateCommission(this.finalPrice);
+        const scope = this.auctionType === "buy_now" ? "product" : "auction";
+        const commissionData = await calculateCommission(this.finalPrice, scope);
         this.commissionAmount = commissionData.commissionAmount;
         this.commissionType = commissionData.commissionType;
         this.commissionValue = commissionData.commissionValue;

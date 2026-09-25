@@ -234,7 +234,7 @@ const SellerCommunication = () => {
                     {/* Header with back button */}
                     <div className="flex items-center gap-4 mb-6 mt-16 md:mt-0">
                         <Link
-                            to="/seller/auctions/sold"
+                            to="/seller/communications/all"
                             className="p-2 bg-white rounded-full shadow hover:shadow-md transition"
                         >
                             <ArrowLeft size={20} className="text-gray-700" />
@@ -242,7 +242,7 @@ const SellerCommunication = () => {
                         <div>
                             <h2 className="text-2xl font-bold text-gray-800">Communication</h2>
                             <p className="text-sm text-gray-500">
-                                Auction: <span className="font-medium">{auction?.title || "N/A"}</span>
+                                Item: <span className="font-medium">{auction?.title || "N/A"}</span>
                             </p>
                         </div>
                     </div>
@@ -436,7 +436,7 @@ const SellerCommunication = () => {
 
                             {/* Auction summary */}
                             <div className="bg-white rounded-xl shadow border border-gray-200 p-4">
-                                <h3 className="font-semibold text-gray-700 mb-2">Auction Details</h3>
+                                <h3 className="font-semibold text-gray-700 mb-2">Item Details</h3>
                                 <div className="text-sm space-y-1">
                                     <p>
                                         <span className="text-gray-500">Title:</span> {auction?.title}

@@ -24,32 +24,62 @@ import Payment from "../models/payment.model.js";
 
 export const getAdminStats = async (req, res) => {
   try {
-    // Get total users count
+    // ---- Shared user metrics ----
     const totalUsers = await User.countDocuments({ isActive: true });
-
-    // Get user type breakdown
     const userTypeStats = await User.aggregate([
       { $match: { isActive: true } },
       { $group: { _id: "$userType", count: { $sum: 1 } } },
     ]);
 
-    // Get total auctions count
-    const totalAuctions = await Auction.countDocuments();
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentUsers = await User.countDocuments({
+      createdAt: { $gte: oneWeekAgo },
+    });
 
-    // Get auction status breakdown
+    const pendingUserVerifications = await User.countDocuments({
+      isVerified: false,
+      isActive: true,
+    });
+
+    // ---- Date boundaries ----
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // ---- Scope filters ----
+    const auctionOnlyMatch = { auctionType: { $ne: "buy_now" } };
+    const productMatch = { auctionType: "buy_now" };
+
+    // ---- Total counts ----
+    const totalAuctions = await Auction.countDocuments(auctionOnlyMatch);
+    const totalProducts = await Auction.countDocuments(productMatch);
+
+    // ---- Status breakdowns ----
     const auctionStatusStats = await Auction.aggregate([
+      { $match: auctionOnlyMatch },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+    const productStatusStats = await Auction.aggregate([
+      { $match: productMatch },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
-    // Get active auctions
+    // ---- Active ----
     const activeAuctions = await Auction.countDocuments({
+      ...auctionOnlyMatch,
       status: "active",
       endDate: { $gt: new Date() },
     });
+    const activeProducts = await Auction.countDocuments({
+      ...productMatch,
+      status: "active",
+    });
 
-    // Calculate total revenue from sold auctions
-    const revenueStats = await Auction.aggregate([
-      { $match: { status: "sold" } },
+    // ---- Revenue split ----
+    const auctionRevenueStats = await Auction.aggregate([
+      { $match: { status: "sold", ...auctionOnlyMatch } },
       {
         $group: {
           _id: null,
@@ -61,68 +91,116 @@ export const getAdminStats = async (req, res) => {
       },
     ]);
 
-    const totalRevenue = revenueStats[0]?.totalRevenue || 0;
-    const highestSaleAmount = revenueStats[0]?.highestSale || 0;
-    const averageSalePrice = revenueStats[0]?.averageSale || 0;
-    const totalSoldAuctions = revenueStats[0]?.totalSold || 0;
+    const productRevenueStats = await Auction.aggregate([
+      { $match: { status: "sold", ...productMatch } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$finalPrice" },
+          highestSale: { $max: "$finalPrice" },
+          averageSale: { $avg: "$finalPrice" },
+          totalSold: { $sum: 1 },
+        },
+      },
+    ]);
 
-    // Get highest sale auction details
-    const highestSaleAuction = await Auction.findOne({ status: "sold" })
+    const totalAuctionRevenue = auctionRevenueStats[0]?.totalRevenue || 0;
+    const totalProductRevenue = productRevenueStats[0]?.totalRevenue || 0;
+    const highestAuctionSaleAmount = auctionRevenueStats[0]?.highestSale || 0;
+    const highestProductSaleAmount = productRevenueStats[0]?.highestSale || 0;
+    const averageAuctionSalePrice = auctionRevenueStats[0]?.averageSale || 0;
+    const averageProductSalePrice = productRevenueStats[0]?.averageSale || 0;
+    const totalSoldAuctions = auctionRevenueStats[0]?.totalSold || 0;
+    const totalSoldProducts = productRevenueStats[0]?.totalSold || 0;
+
+    // ---- Highest sale details ----
+    const highestSaleAuction = await Auction.findOne({
+      status: "sold",
+      ...auctionOnlyMatch,
+    })
       .sort({ finalPrice: -1 })
       .populate("seller", "username firstName lastName")
       .populate("winner", "username firstName lastName")
       .select("title finalPrice seller winner createdAt");
 
-    // Calculate success rate
+    const highestSaleProduct = await Auction.findOne({
+      status: "sold",
+      ...productMatch,
+    })
+      .sort({ finalPrice: -1 })
+      .populate("seller", "username firstName lastName")
+      .populate("winner", "username firstName lastName")
+      .select("title finalPrice seller winner createdAt");
+
+    // ---- Success rates ----
     const completedAuctions = await Auction.countDocuments({
       status: { $in: ["sold", "ended", "reserve_not_met"] },
+      ...auctionOnlyMatch,
     });
-
-    const soldAuctions = await Auction.countDocuments({ status: "sold" });
-    const successRate =
+    const soldAuctionsCount = await Auction.countDocuments({
+      status: "sold",
+      ...auctionOnlyMatch,
+    });
+    const auctionSuccessRate =
       completedAuctions > 0
-        ? Math.round((soldAuctions / completedAuctions) * 100)
+        ? Math.round((soldAuctionsCount / completedAuctions) * 100)
         : 0;
 
-    // Get pending moderation counts
-    const pendingAuctions = await Auction.countDocuments({ status: "draft" });
-    const pendingUserVerifications = await User.countDocuments({
-      isVerified: false,
-      isActive: true,
+    const completedProducts = await Auction.countDocuments({
+      status: { $in: ["sold", "cancelled"] },
+      ...productMatch,
+    });
+    const soldProductsCount = await Auction.countDocuments({
+      status: "sold",
+      ...productMatch,
+    });
+    const productSuccessRate =
+      completedProducts > 0
+        ? Math.round((soldProductsCount / completedProducts) * 100)
+        : 0;
+
+    // ---- Pending moderation ----
+    const pendingAuctionModeration = await Auction.countDocuments({
+      ...auctionOnlyMatch,
+      status: "draft",
+    });
+    const pendingProductModeration = await Auction.countDocuments({
+      ...productMatch,
+      status: "draft",
     });
 
-    const pendingModeration = pendingAuctions;
-
-    // Get recent user registrations (last 7 days)
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const recentUsers = await User.countDocuments({
-      createdAt: { $gte: oneWeekAgo },
-    });
-
-    // Get today's revenue
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayRevenueStats = await Auction.aggregate([
-      {
-        $match: {
-          status: "sold",
-          updatedAt: {
-            $gte: today,
-            $lt: tomorrow,
+    // ---- Today's revenue split ----
+    const todayAuctionRevenue =
+      (
+        await Auction.aggregate([
+          {
+            $match: {
+              status: "sold",
+              ...auctionOnlyMatch,
+              updatedAt: { $gte: today, $lt: tomorrow },
+            },
           },
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$finalPrice" } } },
-    ]);
+          { $group: { _id: null, total: { $sum: "$finalPrice" } } },
+        ])
+      )[0]?.total || 0;
 
-    const todayRevenue = todayRevenueStats[0]?.total || 0;
+    const todayProductRevenue =
+      (
+        await Auction.aggregate([
+          {
+            $match: {
+              status: "sold",
+              ...productMatch,
+              updatedAt: { $gte: today, $lt: tomorrow },
+            },
+          },
+          { $group: { _id: null, total: { $sum: "$finalPrice" } } },
+        ])
+      )[0]?.total || 0;
 
-    // Get system metrics
+    // ---- Shared engagement metrics ----
     const totalComments = await Comment.countDocuments();
-    // const totalWatchlists = await Watchlist.countDocuments();
+
     const watchlistItems = await Watchlist.aggregate([
       {
         $lookup: {
@@ -132,29 +210,17 @@ export const getAdminStats = async (req, res) => {
           as: "auction",
         },
       },
-      {
-        $unwind: "$auction",
-      },
-      {
-        $match: {
-          "auction.status": "active",
-        },
-      },
-      {
-        $count: "count",
-      },
+      { $unwind: "$auction" },
+      { $match: { "auction.status": "active" } },
+      { $count: "count" },
     ]);
-
     const totalWatchlists = watchlistItems[0]?.count || 0;
 
-    // Get bidding activity (last 24 hours)
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recentBids = await Auction.aggregate([
       { $unwind: "$bids" },
       { $match: { "bids.timestamp": { $gte: yesterday } } },
       { $group: { _id: null, count: { $sum: 1 } } },
     ]);
-
     const recentBidsCount = recentBids[0]?.count || 0;
 
     const highestBidStats = await Auction.aggregate([
@@ -169,7 +235,6 @@ export const getAdminStats = async (req, res) => {
       },
     ]);
 
-    // Get top performing categories
     const categoryStats = await Auction.aggregate([
       { $match: { status: "sold" } },
       {
@@ -183,37 +248,29 @@ export const getAdminStats = async (req, res) => {
       { $sort: { totalRevenue: -1 } },
     ]);
 
-    // Get user engagement metrics
     const totalBids = await Auction.aggregate([
       { $group: { _id: null, totalBids: { $sum: "$bidCount" } } },
     ]);
-
     const totalBidsCount = totalBids[0]?.totalBids || 0;
 
-    // Get total offers count
     const totalOffers = await Auction.aggregate([
       { $unwind: "$offers" },
       { $group: { _id: null, count: { $sum: 1 } } },
     ]);
-
     const totalOffersCount = totalOffers[0]?.count || 0;
 
-    // Get offers by status breakdown
     const offersByStatus = await Auction.aggregate([
       { $unwind: "$offers" },
       { $group: { _id: "$offers.status", count: { $sum: 1 } } },
     ]);
 
-    // Get recent offers (last 24 hours)
     const recentOffers = await Auction.aggregate([
       { $unwind: "$offers" },
       { $match: { "offers.createdAt": { $gte: yesterday } } },
       { $group: { _id: null, count: { $sum: 1 } } },
     ]);
-
     const recentOffersCount = recentOffers[0]?.count || 0;
 
-    // Calculate total offer value and average offer
     const offerValueStats = await Auction.aggregate([
       { $unwind: "$offers" },
       {
@@ -232,35 +289,41 @@ export const getAdminStats = async (req, res) => {
         },
       },
     ]);
-
     const totalOfferValue = offerValueStats[0]?.totalOfferValue || 0;
     const avgOfferAmount = offerValueStats[0]?.avgOfferAmount || 0;
     const highestOfferAmount = offerValueStats[0]?.highestOffer || 0;
 
-    const stats = {
-      // Basic counts
-      totalUsers,
-      totalAuctions,
-      activeAuctions,
-      totalSoldAuctions,
+    // ---- Auctions ending today (products excluded) ----
+    const auctionsEndingToday = await Auction.countDocuments({
+      status: "active",
+      ...auctionOnlyMatch,
+      endDate: { $gte: today, $lt: tomorrow },
+    });
 
-      // User statistics
+    // ---- Assemble stats ----
+    const stats = {
+      // Users
+      totalUsers,
       userTypeStats: userTypeStats.reduce((acc, curr) => {
         acc[curr._id] = curr.count;
         return acc;
       }, {}),
+      recentUsers,
+      newUsersThisWeek: recentUsers,
+      pendingUserVerifications,
 
-      // Auction statistics
+      // Auctions (buy_now excluded)
+      totalAuctions,
+      activeAuctions,
+      totalSoldAuctions,
       auctionStatusStats: auctionStatusStats.reduce((acc, curr) => {
         acc[curr._id] = curr.count;
         return acc;
       }, {}),
-
-      // Financial metrics
-      totalRevenue,
-      todayRevenue,
-      highestSaleAmount,
-      averageSalePrice,
+      totalAuctionRevenue,
+      todayAuctionRevenue,
+      highestAuctionSaleAmount,
+      averageAuctionSalePrice,
       highestSaleAuction: highestSaleAuction
         ? {
           title: highestSaleAuction.title,
@@ -270,21 +333,49 @@ export const getAdminStats = async (req, res) => {
           date: highestSaleAuction.createdAt,
         }
         : null,
+      auctionSuccessRate,
+      pendingAuctionModeration,
+      auctionsEndingToday,
 
-      // Performance metrics
-      successRate,
-      pendingModeration,
-      recentUsers,
+      // Products (buy_now only)
+      totalProducts,
+      activeProducts,
+      totalSoldProducts,
+      productStatusStats: productStatusStats.reduce((acc, curr) => {
+        acc[curr._id] = curr.count;
+        return acc;
+      }, {}),
+      totalProductRevenue,
+      todayProductRevenue,
+      highestProductSaleAmount,
+      averageProductSalePrice,
+      highestSaleProduct: highestSaleProduct
+        ? {
+          title: highestSaleProduct.title,
+          amount: highestSaleProduct.finalPrice,
+          seller: highestSaleProduct.seller?.username || "Unknown",
+          winner: highestSaleProduct.winner?.username || "Unknown",
+          date: highestSaleProduct.createdAt,
+        }
+        : null,
+      productSuccessRate,
+      pendingProductModeration,
 
-      // Engagement metrics
+      // Backward-compat aliases (auction-focused)
+      totalRevenue: totalAuctionRevenue,
+      todayRevenue: todayAuctionRevenue,
+      highestSaleAmount: highestAuctionSaleAmount,
+      averageSalePrice: averageAuctionSalePrice,
+      successRate: auctionSuccessRate,
+      pendingModeration: pendingAuctionModeration,
+
+      // Engagement (combined)
       totalComments,
       totalWatchlists,
       totalBids: totalBidsCount,
       recentBids: recentBidsCount,
       highestBidAmount: highestBidStats[0]?.highestBidAmount || 0,
       averageBidAmount: highestBidStats[0]?.averageBidAmount || 0,
-
-      // Engagement metrics section
       totalOffers: totalOffersCount,
       recentOffers: recentOffersCount,
       offersByStatus: offersByStatus.reduce((acc, curr) => {
@@ -292,32 +383,16 @@ export const getAdminStats = async (req, res) => {
         return acc;
       }, {}),
       pendingOffers: offersByStatus.pending || 0,
-      totalOfferValue: totalOfferValue,
+      totalOfferValue,
       averageOfferAmount: avgOfferAmount,
-      highestOfferAmount: highestOfferAmount,
+      highestOfferAmount,
 
-      // Category performance
       categoryStats,
-
-      // System metrics (you can implement real ones based on your monitoring)
       avgResponseTime: 2.3,
       systemHealth: 99.8,
-
-      // Additional insights
-      newUsersThisWeek: recentUsers,
-      auctionsEndingToday: await Auction.countDocuments({
-        status: "active",
-        endDate: {
-          $gte: today,
-          $lt: tomorrow,
-        },
-      }),
     };
 
-    res.status(200).json({
-      success: true,
-      data: stats,
-    });
+    res.status(200).json({ success: true, data: stats });
   } catch (error) {
     console.error("Get admin stats error:", error);
     res.status(500).json({
@@ -691,6 +766,7 @@ export const getAllAuctions = async (req, res) => {
     const { page = 1, limit = 10, search = "", filter = "all" } = req.query;
 
     const skip = (page - 1) * limit;
+    const { context } = req.query;
 
     // Build search query
     let searchQuery = {
@@ -701,6 +777,12 @@ export const getAllAuctions = async (req, res) => {
         { categories: { $in: [new RegExp(search, "i")] } },
       ],
     };
+
+    if (context === "product") {
+      searchQuery.auctionType = "buy_now";
+    } else if (context === "auction") {
+      searchQuery.auctionType = { $ne: "buy_now" };
+    }
 
     // Add status filter if not 'all'
     if (filter !== "all") {
@@ -726,8 +808,13 @@ export const getAllAuctions = async (req, res) => {
     // Get total count for pagination
     const totalAuctions = await Auction.countDocuments(searchQuery);
 
+    const statsMatch = {};
+    if (context === "product") statsMatch.auctionType = "buy_now";
+    else if (context === "auction") statsMatch.auctionType = { $ne: "buy_now" };
+
     // Get auction statistics
     const auctionStats = await Auction.aggregate([
+      { $match: statsMatch },
       {
         $facet: {
           total: [{ $count: "count" }],
@@ -904,23 +991,28 @@ export const approveAuction = async (req, res) => {
     }
 
     const now = new Date();
-    if (auction.startDate > now) {
+    const isProduct = auction.auctionType === "buy_now";
+
+    if (isProduct) {
+      // Products have no dates — go straight to active
+      auction.status = "active";
+      await auction.populate("seller", "email username companyName firstName lastName");
+      auctionListedEmail(auction, auction.seller).catch((error) =>
+        console.error("Failed to send auction listed email:", error),
+      );
+    } else if (auction.startDate > now) {
       auction.status = "approved";
       await agendaService.scheduleAuctionActivation(auction._id, auction.startDate);
-      // Fire and forget
       auctionApprovedEmail(auction.seller, auction).catch((error) =>
         console.error("Failed to send auction approved email:", error),
       );
     } else {
       auction.status = "active";
       await auction.populate("seller", "email username companyName firstName lastName");
-
-      // Fire and forget
       auctionListedEmail(auction, auction.seller).catch((error) =>
         console.error("Failed to send auction listed email:", error),
       );
-
-      if (auction.endDate <= now) {
+      if (auction.endDate && auction.endDate <= now) {
         await auction.endAuction();
       }
     }
@@ -1111,7 +1203,7 @@ export const updateAuction = async (req, res) => {
     // =================================================
 
     // Basic validation - check if fields exist in req.body
-    if (!title || !description || !auctionType || !startDate || !endDate) {
+    if (!title || !description || !auctionType) {
       return res.status(400).json({
         success: false,
         message: "All required fields must be provided",
@@ -1123,6 +1215,12 @@ export const updateAuction = async (req, res) => {
           endDate: !endDate,
         },
       });
+    }
+
+    // --- Dates: required for everything except buy_now ---
+    const isProduct = auctionType === "buy_now";
+    if (!isProduct && (!startDate || !endDate)) {
+      return res.status(400).json({ success: false, message: "Start and end dates are required" });
     }
 
     // Validate start price for all auction types
@@ -1689,70 +1787,52 @@ export const updateAuction = async (req, res) => {
     });
 
     // ========== DATE VALIDATION ==========
-
-    // Validate dates
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const now = new Date();
-
-    if (end <= start) {
-      return res.status(400).json({
-        success: false,
-        message: "End date must be after start date",
-      });
+    let start = null;
+    let end = null;
+    if (!isProduct) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+      if (end <= start) {
+        return res.status(400).json({ success: false, message: "End date must be after start date" });
+      }
     }
 
     // ========== STATUS DETERMINATION ==========
-
-    // Determine status for always-available auctions (buy_now and giveaway)
     let newStatus;
 
     if (isSoldAuction) {
-      // For sold auctions being reset, determine status based on new dates
-      const originalStart = auction.startDate;
-      const originalEnd = auction.endDate;
-      const startChanged = start.getTime() !== originalStart.getTime();
-      const endChanged = end.getTime() !== originalEnd.getTime();
-
-      // If dates haven't changed, keep the original date logic but reset everything else
-      if (!startChanged && !endChanged) {
-        // Use the original date logic but with reset status
-        if (originalStart > now) {
-          newStatus = "draft"; // Future date, start as draft
-        } else if (originalStart <= now && originalEnd > now) {
-          newStatus = "active"; // Should be active now
-        } else if (originalEnd <= now) {
-          newStatus = "ended"; // Already ended
-        }
+      // Sold reset logic (unchanged) — for products there's no startDate/endDate
+      if (isProduct) {
+        newStatus = "draft";   // product reset → back to draft for re-approval
       } else {
-        // If dates have changed, use the new dates
-        if (start > now) {
-          newStatus = "draft"; // Future date, start as draft
-        } else if (start <= now && end > now) {
-          newStatus = "active"; // Should be active now
-        } else if (end <= now) {
-          newStatus = "ended"; // Already ended
+        const originalStart = auction.startDate;
+        const originalEnd = auction.endDate;
+        const startChanged = start.getTime() !== originalStart.getTime();
+        const endChanged = end.getTime() !== originalEnd.getTime();
+
+        if (!startChanged && !endChanged) {
+          if (originalStart > now) newStatus = "draft";
+          else if (originalStart <= now && originalEnd > now) newStatus = "active";
+          else if (originalEnd <= now) newStatus = "ended";
+        } else {
+          if (start > now) newStatus = "draft";
+          else if (start <= now && end > now) newStatus = "active";
+          else if (end <= now) newStatus = "ended";
         }
       }
     } else {
-      // For non-sold auctions, determine status based on auction type and dates
-      if (auctionType === "buy_now" || auctionType === "giveaway") {
-        // Always-available auctions should be active if no winner
+      if (isProduct) {
+        // Products: keep existing status, or draft if it was ended/cancelled
+        newStatus = auction.winner
+          ? auction.status
+          : ["active", "draft"].includes(auction.status) ? auction.status : "draft";
+      } else if (auctionType === "giveaway") {
         newStatus = auction.winner ? auction.status : "active";
       } else {
-        // Timed auctions (standard/reserve) - use date-based logic
-        if (start > now && end > now) {
-          // Dates are in future
-          newStatus = "approved";
-        } else if (end <= now) {
-          // Auction has ended
-          newStatus = "ended";
-        } else if (start <= now && end > now) {
-          // Auction should be active now
-          newStatus = "active";
-        } else {
-          newStatus = auction.status; // Keep existing status as fallback
-        }
+        if (start > now && end > now) newStatus = "approved";
+        else if (end <= now) newStatus = "ended";
+        else if (start <= now && end > now) newStatus = "active";
+        else newStatus = auction.status;
       }
     }
 
@@ -1836,31 +1916,22 @@ export const updateAuction = async (req, res) => {
     }).populate("seller", "username firstName lastName");
 
     // ========== RESCHEDULE JOBS ==========
-
-    // Reschedule jobs if dates changed
-    if (
-      start.getTime() !== new Date(auction.startDate).getTime() ||
-      end.getTime() !== new Date(auction.endDate).getTime()
-    ) {
+    if (isProduct) {
+      // Products don't have scheduled jobs
       await agendaService.cancelAuctionJobs(auction._id);
+    } else {
+      const datesChanged =
+        start.getTime() !== new Date(auction.startDate).getTime() ||
+        end.getTime() !== new Date(auction.endDate).getTime();
 
-      // Only schedule jobs for timed auctions (standard/reserve)
-      if (auctionType === "standard" || auctionType === "reserve") {
-        // Schedule activation if start date is in future
-        if (start > new Date()) {
-          await agendaService.scheduleAuctionActivation(
-            updatedAuction._id,
-            start,
-          );
+      if (datesChanged) {
+        await agendaService.cancelAuctionJobs(auction._id);
+        if (auctionType === "standard" || auctionType === "reserve") {
+          if (start > new Date()) {
+            await agendaService.scheduleAuctionActivation(updatedAuction._id, start);
+          }
+          await agendaService.scheduleAuctionEnd(updatedAuction._id, end);
         }
-
-        // Always schedule end job for timed auctions
-        await agendaService.scheduleAuctionEnd(updatedAuction._id, end);
-      } else {
-        // For buy_now and giveaway, no need to schedule jobs
-        console.log(
-          `🛒 ${auctionType} auction ${id} - no jobs scheduled (always available)`,
-        );
       }
     }
 

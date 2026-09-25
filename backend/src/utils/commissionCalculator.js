@@ -1,46 +1,44 @@
 import Commission from "../models/commission.model.js";
 
 /**
- * Calculate commission based on global commission settings
- * @param {number} finalPrice - The final sale price
- * @returns {Promise<Object>} Commission details
+ * Calculate commission based on scope.
+ * @param {number} finalPrice
+ * @param {'auction'|'product'} scope
  */
-
-export const calculateCommission = async (finalPrice) => {
+export const calculateCommission = async (finalPrice, scope = 'auction') => {
   try {
-    // Get global commission settings
-    const commission = await Commission.findOne();
+    const commission = await Commission.findOne({ scope });
+
+    // Fallback rates: 5% for auctions, 10% for products
+    const fallback = scope === 'product' ? 10 : 5;
 
     if (!commission) {
-      // Default to 5% if no commission set
       return {
         commissionType: "percentage",
-        commissionValue: 5,
-        commissionAmount: (finalPrice * 5) / 100,
+        commissionValue: fallback,
+        commissionAmount: Math.round(((finalPrice * fallback) / 100) * 100) / 100,
       };
     }
 
     let commissionAmount = 0;
-
     if (commission.commissionType === "fixed") {
       commissionAmount = commission.commissionValue;
     } else {
-      // Percentage
       commissionAmount = (finalPrice * commission.commissionValue) / 100;
     }
 
     return {
       commissionType: commission.commissionType,
       commissionValue: commission.commissionValue,
-      commissionAmount: Math.round(commissionAmount * 100) / 100, // Round to 2 decimals
+      commissionAmount: Math.round(commissionAmount * 100) / 100,
     };
   } catch (error) {
     console.error("Error calculating commission:", error);
-    // Fallback to 5% if error
+    const fallback = scope === 'product' ? 10 : 5;
     return {
       commissionType: "percentage",
-      commissionValue: 5,
-      commissionAmount: (finalPrice * 5) / 100,
+      commissionValue: fallback,
+      commissionAmount: Math.round(((finalPrice * fallback) / 100) * 100) / 100,
     };
   }
 };

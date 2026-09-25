@@ -21,6 +21,10 @@ const navLinks = [
         name: 'All Sellers',
         href: '/sellers'
     },
+    {
+        name: 'Products',
+        href: '/products'
+    },
     // {
     //     name: 'Contact',
     //     href: '/contact'

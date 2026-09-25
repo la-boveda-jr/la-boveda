@@ -198,7 +198,9 @@ function WonAuctions() {
             setLoading(true);
             setError(null);
 
-            const { data } = await axiosInstance.get("/api/v1/auctions/won-auctions");
+            const { data } = await axiosInstance.get(`/api/v1/auctions/won-auctions`, {
+                params: { context: 'auction' }
+            });
 
             if (data.success) {
                 setAllAuctions(data.data.auctions);
@@ -301,7 +303,7 @@ function WonAuctions() {
             style: 'currency',
             currency: 'USD',
             minimumFractionDigits: 0,
-            maximumFractionDigits: 0
+            maximumFractionDigits: 2
         }).format(amount);
     };
 
@@ -502,11 +504,14 @@ function WonAuctions() {
                                             </h3>
                                         </div>
                                         <div className="text-right">
-                                            <div className="text-2xl font-bold text-green-600">
-                                                {formatCurrency(auction.finalBid)}
+                                            <div className="">
+                                                <span className="text-2xl font-bold text-green-600">{formatCurrency(auction.finalBid)}</span>
+                                                {auction?.commissionAmount && (
+                                                    <span className="text-sm font-semibold text-green-600"> (+ {formatCurrency(auction.commissionAmount)})</span>
+                                                )}
                                             </div>
                                             {/* <div className="text-sm text-gray-500">Winning Bid</div> */}
-                                            <div className="text-sm text-gray-500">Winning Amount</div>
+                                            <div className="text-sm text-gray-500">Winning Amount + Fee</div>
                                         </div>
                                     </div>
 
@@ -539,17 +544,6 @@ function WonAuctions() {
                                                 {formatCurrency(auction.startingBid)}
                                             </p>
                                         </div>
-                                        {
-                                            auction.buyNowPrice && (
-                                                <div>
-                                                    {/* <p className="text-sm text-gray-500">Your Max Bid</p> */}
-                                                    <p className="text-sm text-gray-500">Buy Now Price</p>
-                                                    <p className="font-semibold">
-                                                        {formatCurrency(auction?.buyNowPrice)}
-                                                    </p>
-                                                </div>
-                                            )
-                                        }
                                         {/* <div>
                                             <p className="text-sm text-gray-500">Total Offers</p>
                                             <p className="font-semibold">{auction?.offersCount} offers</p>

@@ -25,7 +25,8 @@ import {
     Tags,
     PoundSterling,
     BanknoteArrowDown,
-    BanknoteArrowUp
+    BanknoteArrowUp,
+    ShoppingBag
 } from "lucide-react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { logo } from "../../assets";
@@ -47,6 +48,11 @@ const navigation = [
         name: 'Auctions',
         path: '/admin/auctions/all',
         icon: <Gavel size={20} />
+    },
+    {
+        name: 'Products',
+        path: '/admin/products/all',
+        icon: <ShoppingBag size={20} />
     },
     {
         name: 'Bids',

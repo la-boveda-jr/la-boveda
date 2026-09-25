@@ -25,40 +25,20 @@ export const createAuction = async (req, res) => {
     const seller = req.user;
 
     const {
-      title,
-      subTitle,
-      features,
-      description,
-      specifications,
-      location,
-      videoLink,
-      startPrice,
-      bidIncrement,
-      auctionType,
-      reservePrice,
-      buyNowPrice,
-      allowOffers,
-      startDate,
-      endDate,
+      title, subTitle, features, description, specifications, location,
+      videoLink, startPrice, bidIncrement, auctionType, reservePrice,
+      buyNowPrice, allowOffers, startDate, endDate,
     } = req.body;
 
+    // ---- Categories parse ----
     let categoriesArray = [];
     if (req.body.categories) {
       try {
-        // Try to parse it as JSON first (since you're sending JSON.stringify from frontend)
         const parsed = JSON.parse(req.body.categories);
-        // If parsed is an array, use it directly
-        if (Array.isArray(parsed)) {
-          categoriesArray = parsed;
-        } else {
-          categoriesArray = [parsed];
-        }
+        categoriesArray = Array.isArray(parsed) ? parsed : [parsed];
       } catch (e) {
-        // If it's not JSON, handle as regular string or array
-        if (Array.isArray(req.body.categories)) {
-          categoriesArray = req.body.categories;
-        } else if (typeof req.body.categories === "string") {
-          // Split by comma if it's a comma-separated string, otherwise single item
+        if (Array.isArray(req.body.categories)) categoriesArray = req.body.categories;
+        else if (typeof req.body.categories === "string") {
           categoriesArray = req.body.categories.includes(",")
             ? req.body.categories.split(",").map((c) => c.trim())
             : [req.body.categories];
@@ -66,23 +46,19 @@ export const createAuction = async (req, res) => {
       }
     }
 
-    // Validation
     if (!categoriesArray || categoriesArray.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one category is required",
-      });
+      return res.status(400).json({ success: false, message: "At least one category is required" });
     }
 
-    // Basic validation
-    if (!title || !description || !auctionType || !startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: "All required fields must be provided",
-      });
+    if (!title || !description || !auctionType) {
+      return res.status(400).json({ success: false, message: "All required fields must be provided" });
     }
 
-    // Validate start price for all auction types
+    const isProduct = auctionType === "buy_now";
+    if (!isProduct && (!startDate || !endDate)) {
+      return res.status(400).json({ success: false, message: "Start and end dates are required" });
+    }
+
     if (!startPrice || parseFloat(startPrice) < 0) {
       return res.status(400).json({
         success: false,
@@ -90,82 +66,54 @@ export const createAuction = async (req, res) => {
       });
     }
 
-    // Validate bid increment for standard and reserve auctions
-    if (
-      (auctionType === "standard" || auctionType === "reserve") &&
-      (!bidIncrement || parseFloat(bidIncrement) <= 0)
-    ) {
+    if ((auctionType === "standard" || auctionType === "reserve") &&
+      (!bidIncrement || parseFloat(bidIncrement) <= 0)) {
       return res.status(400).json({
         success: false,
         message: "Bid increment is required for standard and reserve auctions",
       });
     }
 
-    // Parse specifications from JSON string to object
     let parsedSpecifications = {};
     if (specifications) {
-      try {
-        parsedSpecifications = JSON.parse(specifications);
-      } catch (parseError) {
-        console.error("Error parsing specifications:", parseError);
-        return res.status(400).json({
-          success: false,
-          message: "Invalid specifications format",
-        });
-      }
+      try { parsedSpecifications = JSON.parse(specifications); }
+      catch { return res.status(400).json({ success: false, message: "Invalid specifications format" }); }
     }
 
-    // Validate reserve price for reserve auctions
-    if (auctionType === "reserve") {
-      if (!reservePrice || parseFloat(reservePrice) < parseFloat(startPrice)) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Reserve price must be provided and greater than or equal to start price",
-        });
-      }
+    if (auctionType === "reserve" &&
+      (!reservePrice || parseFloat(reservePrice) < parseFloat(startPrice))) {
+      return res.status(400).json({
+        success: false,
+        message: "Reserve price must be provided and greater than or equal to start price",
+      });
     }
 
-    // Validate buy now price for buy_now auctions
-    if (auctionType === "buy_now") {
-      if (!buyNowPrice || parseFloat(buyNowPrice) < parseFloat(startPrice)) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Buy Now price must be provided and greater than or equal to start price",
-        });
-      }
+    if (auctionType === "buy_now" &&
+      (!buyNowPrice || parseFloat(buyNowPrice) < parseFloat(startPrice))) {
+      return res.status(400).json({
+        success: false,
+        message: "Buy Now price must be provided and greater than or equal to start price",
+      });
     }
 
-    // Handle file uploads
+    // ---- File uploads ----
     let uploadedPhotos = [];
     let uploadedDocuments = [];
     let uploadedServiceRecords = [];
 
-    // Upload photos
     if (req.files && req.files.photos) {
-      const photos = Array.isArray(req.files.photos)
-        ? req.files.photos
-        : [req.files.photos];
-
-      // Get captions from request body
-      // const photoCaptions = req.body.photoCaptions || [];
-      const photoCaptions = Array.isArray(req.body.photoCaptions)
-        ? req.body.photoCaptions
-        : [];
+      const photos = Array.isArray(req.files.photos) ? req.files.photos : [req.files.photos];
+      const photoCaptions = Array.isArray(req.body.photoCaptions) ? req.body.photoCaptions : [];
 
       for (const [index, photo] of photos.entries()) {
         try {
-          const result = await uploadImageToCloudinary(
-            photo.buffer,
-            "auction-photos",
-          );
+          const result = await uploadImageToCloudinary(photo.buffer, "auction-photos");
           uploadedPhotos.push({
             url: result.secure_url,
             publicId: result.public_id,
             filename: photo.originalname,
             order: index,
-            caption: photoCaptions[index] || "", // ADD THIS LINE
+            caption: photoCaptions[index] || "",
           });
         } catch (uploadError) {
           console.error("Photo upload error:", uploadError);
@@ -177,32 +125,21 @@ export const createAuction = async (req, res) => {
       }
     }
 
-    // For documents:
     if (req.files && req.files.documents) {
-      const documents = Array.isArray(req.files.documents)
-        ? req.files.documents
-        : [req.files.documents];
-
-      // Get document captions
-      // const documentCaptions = req.body.documentCaptions || [];
+      const documents = Array.isArray(req.files.documents) ? req.files.documents : [req.files.documents];
       const newDocumentCaptions = Array.isArray(req.body.newDocumentCaptions)
-        ? req.body.newDocumentCaptions
-        : [];
+        ? req.body.newDocumentCaptions : [];
 
       for (const [index, doc] of documents.entries()) {
         try {
-          const result = await uploadDocumentToCloudinary(
-            doc.buffer,
-            doc.originalname,
-            "auction-documents",
-          );
+          const result = await uploadDocumentToCloudinary(doc.buffer, doc.originalname, "auction-documents");
           uploadedDocuments.push({
             url: result.secure_url,
             publicId: result.public_id,
             filename: doc.originalname,
             originalName: doc.originalname,
             resourceType: "raw",
-            caption: documentCaptions[index] || "", // ADD THIS
+            caption: newDocumentCaptions[index] || "",
           });
         } catch (uploadError) {
           console.error("Document upload error:", uploadError);
@@ -210,52 +147,40 @@ export const createAuction = async (req, res) => {
       }
     }
 
-    // For service records:
     if (req.files && req.files.serviceRecords) {
-      const serviceRecords = Array.isArray(req.files.serviceRecords)
-        ? req.files.serviceRecords
-        : [req.files.serviceRecords];
-
-      // Get service record captions
-      // const serviceRecordCaptions = req.body.serviceRecordCaptions || [];
-      const serviceRecordCaptions = Array.isArray(
-        req.body.serviceRecordCaptions,
-      )
-        ? req.body.serviceRecordCaptions
-        : [];
+      const serviceRecords = Array.isArray(req.files.serviceRecords) ? req.files.serviceRecords : [req.files.serviceRecords];
+      const serviceRecordCaptions = Array.isArray(req.body.serviceRecordCaptions)
+        ? req.body.serviceRecordCaptions : [];
 
       for (const [index, record] of serviceRecords.entries()) {
         try {
-          const result = await uploadImageToCloudinary(
-            record.buffer,
-            "auction-service-records",
-          );
+          const result = await uploadImageToCloudinary(record.buffer, "auction-service-records");
           uploadedServiceRecords.push({
             url: result.secure_url,
             publicId: result.public_id,
             filename: record.originalname,
             originalName: record.originalname,
             order: index,
-            caption: serviceRecordCaptions[index] || "", // ADD THIS
+            caption: serviceRecordCaptions[index] || "",
           });
         } catch (uploadError) {
           console.error("Service record upload error:", uploadError);
         }
       }
     }
-    // Validate dates
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const now = new Date();
 
-    if (end <= start) {
-      return res.status(400).json({
-        success: false,
-        message: "End date must be after start date",
-      });
+    // ---- Dates ----
+    let start = null;
+    let end = null;
+    if (!isProduct) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+      if (end <= start) {
+        return res.status(400).json({ success: false, message: "End date must be after start date" });
+      }
     }
 
-    // Create auction data object
+    // ---- Auction data ----
     const auctionData = {
       title,
       subTitle: subTitle || "",
@@ -275,71 +200,44 @@ export const createAuction = async (req, res) => {
       photos: uploadedPhotos,
       documents: uploadedDocuments,
       serviceRecords: uploadedServiceRecords,
-      status:
-        auctionType === "buy_now" || auctionType === "giveaway"
-          ? "active"
-          : "draft",
+      status: auctionType === "giveaway" ? "active" : "draft",
     };
 
-    // Add bid increment for standard and reserve auctions
     if (auctionType === "standard" || auctionType === "reserve") {
       auctionData.bidIncrement = parseFloat(bidIncrement);
     }
-
-    // Add reserve price for reserve auctions
-    if (auctionType === "reserve") {
-      auctionData.reservePrice = parseFloat(reservePrice);
-    }
-
-    // Add buy now price for buy_now auctions
+    if (auctionType === "reserve") auctionData.reservePrice = parseFloat(reservePrice);
     if (auctionType === "buy_now") {
       auctionData.buyNowPrice = parseFloat(buyNowPrice);
-    }
-
-    // Add optional bid increment for buy_now auctions if provided
-    if (
-      auctionType === "buy_now" &&
-      bidIncrement &&
-      parseFloat(bidIncrement) > 0
-    ) {
-      auctionData.bidIncrement = parseFloat(bidIncrement);
+      if (bidIncrement && parseFloat(bidIncrement) > 0) {
+        auctionData.bidIncrement = parseFloat(bidIncrement);
+      }
     }
 
     const auction = await Auction.create(auctionData);
 
-    // Schedule activation job (always needed for all types)
-    await agendaService.scheduleAuctionActivation(
-      auction._id,
-      auction.startDate,
-    );
-
-    // Only schedule end job for timed auctions (standard/reserve)
-    if (
-      auction.auctionType === "standard" ||
-      auction.auctionType === "reserve"
-    ) {
-      await agendaService.scheduleAuctionEnd(auction._id, auction.endDate);
+    // ---- Scheduling ----
+    if (auctionType !== "buy_now" && start) {
+      await agendaService.scheduleAuctionActivation(auction._id, start);
+    }
+    if ((auctionType === "standard" || auctionType === "reserve") && end) {
+      await agendaService.scheduleAuctionEnd(auction._id, end);
     }
 
-    // Populate seller info for response
     await auction.populate("seller", "username firstName lastName");
 
     res.status(201).json({
       success: true,
-      message: "Auction created successfully",
-      data: {
-        auction,
-      },
+      message: isProduct
+        ? "Product created successfully, awaiting admin approval"
+        : "Auction created successfully",
+      data: { auction },
     });
 
-    // Notify admins if needed
+    // ---- Admin notification ----
     const adminUsers = await User.find({ userType: "admin" });
     for (const admin of adminUsers) {
-      await auctionSubmittedForApprovalEmail(
-        admin.email,
-        auction,
-        auction.seller,
-      );
+      await auctionSubmittedForApprovalEmail(admin.email, auction, auction.seller);
     }
   } catch (error) {
     console.error("Create auction error:", error);
@@ -380,7 +278,17 @@ export const getAuctions = async (req, res) => {
     } = req.query;
 
     // Build filter object
-    const filter = {};
+    let filter = {};
+
+    const { context } = req.query;
+    if (context === "product") {
+      filter.auctionType = "buy_now";
+    } else if (context === "auction") {
+      filter.auctionType = { $ne: "buy_now" };
+    } else {
+      // Default: exclude products from the public auctions list
+      filter.auctionType = { $ne: "buy_now" };
+    }
 
     // Status filter
     if (status && status !== "any") {
@@ -581,7 +489,10 @@ export const getTopLiveAuctions = async (req, res) => {
     } = req.query;
 
     // Build filter object
-    const filter = {};
+    let filter = {};
+
+    // Home-page feed: exclude products by default
+    filter.auctionType = { $ne: "buy_now" };
 
     // Status filtering
     if (status === "active") {
@@ -737,13 +648,9 @@ export const updateAuction = async (req, res) => {
     const auction = await Auction.findById(id);
 
     if (!auction) {
-      return res.status(404).json({
-        success: false,
-        message: "Auction not found",
-      });
+      return res.status(404).json({ success: false, message: "Auction not found" });
     }
 
-    // Check if user owns the auction
     if (auction.seller.toString() !== seller._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -751,54 +658,32 @@ export const updateAuction = async (req, res) => {
       });
     }
 
-    // CHECK: If auction is sold, prevent seller from editing
     if (auction.status === "sold" || auction.status === "sold_buy_now") {
       return res.status(401).json({
         success: false,
-        message: `Sold auction can be edited by administrator only.`,
+        message: "Sold auction can be edited by administrator only.",
       });
     }
 
-    // CHECK: If auction is ended, seller can reset and re-list it
     const isEndedAuction =
       auction.status === "ended" || auction.status === "reserve_not_met";
 
     const {
-      title,
-      features,
-      description,
-      specifications,
-      location,
-      videoLink,
-      startPrice,
-      bidIncrement,
-      auctionType,
-      reservePrice,
-      buyNowPrice,
-      allowOffers,
-      startDate,
-      endDate,
-      removedPhotos,
-      removedDocuments,
-      removedServiceRecords,
-      photoOrder,
-      serviceRecordOrder,
+      title, features, description, specifications, location, videoLink,
+      startPrice, bidIncrement, auctionType, reservePrice, buyNowPrice,
+      allowOffers, startDate, endDate, removedPhotos, removedDocuments,
+      removedServiceRecords, photoOrder, serviceRecordOrder,
     } = req.body;
 
-    // ========== CATEGORIES HANDLING ==========
+    // ---- Categories parse ----
     let categoriesArray = [];
     if (req.body.categories) {
       try {
         const parsed = JSON.parse(req.body.categories);
-        if (Array.isArray(parsed)) {
-          categoriesArray = parsed;
-        } else {
-          categoriesArray = [parsed];
-        }
+        categoriesArray = Array.isArray(parsed) ? parsed : [parsed];
       } catch (e) {
-        if (Array.isArray(req.body.categories)) {
-          categoriesArray = req.body.categories;
-        } else if (typeof req.body.categories === "string") {
+        if (Array.isArray(req.body.categories)) categoriesArray = req.body.categories;
+        else if (typeof req.body.categories === "string") {
           categoriesArray = req.body.categories.includes(",")
             ? req.body.categories.split(",").map((c) => c.trim())
             : [req.body.categories];
@@ -806,23 +691,19 @@ export const updateAuction = async (req, res) => {
       }
     }
 
-    // Validation - categories are required
     if (!categoriesArray || categoriesArray.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "At least one category is required",
-      });
+      return res.status(400).json({ success: false, message: "At least one category is required" });
     }
 
-    // Basic validation
-    if (!title || !description || !auctionType || !startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: "All required fields must be provided",
-      });
+    if (!title || !description || !auctionType) {
+      return res.status(400).json({ success: false, message: "All required fields must be provided" });
     }
 
-    // Validate start price for all auction types
+    const isProduct = auctionType === "buy_now";
+    if (!isProduct && (!startDate || !endDate)) {
+      return res.status(400).json({ success: false, message: "Start and end dates are required" });
+    }
+
     if (!startPrice || parseFloat(startPrice) < 0) {
       return res.status(400).json({
         success: false,
@@ -830,10 +711,8 @@ export const updateAuction = async (req, res) => {
       });
     }
 
-    // If auction is ended, we'll reset all bidding/offer data
     if (isEndedAuction) {
       const resetData = {
-        // Reset all bidding/offers/winner data
         bids: [],
         offers: [],
         currentPrice: parseFloat(startPrice),
@@ -841,15 +720,11 @@ export const updateAuction = async (req, res) => {
         winner: null,
         finalPrice: null,
         bidCount: 0,
-
-        // Reset payment info
         paymentStatus: "pending",
         paymentMethod: null,
         paymentDate: null,
         transactionId: null,
         invoice: null,
-
-        // Reset notifications
         notifications: {
           ending30min: false,
           ending2hour: false,
@@ -860,73 +735,47 @@ export const updateAuction = async (req, res) => {
           offerReceived: false,
           offerExpiring: false,
         },
-
         lastBidTime: null,
-
-        // Reset commission
         commissionAmount: 0,
         bidPaymentRequired: true,
       };
-
-      // Apply reset data to auction object
       Object.assign(auction, resetData);
     }
 
-    // Validate bid increment for standard and reserve auctions
-    if (
-      (auctionType === "standard" || auctionType === "reserve") &&
-      (!bidIncrement || parseFloat(bidIncrement) <= 0)
-    ) {
+    if ((auctionType === "standard" || auctionType === "reserve") &&
+      (!bidIncrement || parseFloat(bidIncrement) <= 0)) {
       return res.status(400).json({
         success: false,
         message: "Bid increment is required for standard and reserve auctions",
       });
     }
 
-    // Validate buy now price for buy_now auctions
-    if (auctionType === "buy_now") {
-      if (!buyNowPrice || parseFloat(buyNowPrice) < parseFloat(startPrice)) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Buy Now price must be provided and greater than or equal to start price",
-        });
-      }
+    if (auctionType === "buy_now" &&
+      (!buyNowPrice || parseFloat(buyNowPrice) < parseFloat(startPrice))) {
+      return res.status(400).json({
+        success: false,
+        message: "Buy Now price must be provided and greater than or equal to start price",
+      });
     }
 
-    // Validate reserve price for reserve auctions
-    if (auctionType === "reserve") {
-      if (!reservePrice || parseFloat(reservePrice) < parseFloat(startPrice)) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Reserve price must be provided and greater than or equal to start price",
-        });
-      }
+    if (auctionType === "reserve" &&
+      (!reservePrice || parseFloat(reservePrice) < parseFloat(startPrice))) {
+      return res.status(400).json({
+        success: false,
+        message: "Reserve price must be provided and greater than or equal to start price",
+      });
     }
 
-    // Validate giveaway auctions
-    if (auctionType === "giveaway") {
-      // For giveaways, we don't need pricing fields
-      if (buyNowPrice || reservePrice || bidIncrement) {
-        console.log("Warning: Pricing fields ignored for giveaway auction");
-      }
-    }
-
-    // Handle specifications (keep your existing specifications handling code)
+    // ---- Specifications merge (unchanged) ----
     let finalSpecifications = new Map();
 
-    // Convert existing specifications to Map if they exist
     if (auction.specifications && auction.specifications instanceof Map) {
       auction.specifications.forEach((value, key) => {
         if (value !== null && value !== undefined && value !== "") {
           finalSpecifications.set(key, value);
         }
       });
-    } else if (
-      auction.specifications &&
-      typeof auction.specifications === "object"
-    ) {
+    } else if (auction.specifications && typeof auction.specifications === "object") {
       Object.entries(auction.specifications).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== "") {
           finalSpecifications.set(key, value);
@@ -934,16 +783,10 @@ export const updateAuction = async (req, res) => {
       });
     }
 
-    // Parse and merge new specifications
     if (specifications) {
       try {
-        let newSpecs;
-        if (typeof specifications === "string") {
-          newSpecs = JSON.parse(specifications);
-        } else {
-          newSpecs = specifications;
-        }
-
+        const newSpecs = typeof specifications === "string"
+          ? JSON.parse(specifications) : specifications;
         if (typeof newSpecs === "object" && newSpecs !== null) {
           Object.entries(newSpecs).forEach(([key, value]) => {
             if (value !== null && value !== undefined && value !== "") {
@@ -955,171 +798,112 @@ export const updateAuction = async (req, res) => {
         }
       } catch (parseError) {
         console.error("Error parsing specifications:", parseError);
-        return res.status(400).json({
-          success: false,
-          message: "Invalid specifications format",
-        });
+        return res.status(400).json({ success: false, message: "Invalid specifications format" });
       }
     }
 
-    // Handle removed photos
+    // ---- Photos: removed + new upload ----
     let finalPhotos = [...auction.photos];
     if (removedPhotos) {
       try {
-        const removedPhotoIds =
-          typeof removedPhotos === "string"
-            ? JSON.parse(removedPhotos)
-            : removedPhotos;
-
+        const removedPhotoIds = typeof removedPhotos === "string"
+          ? JSON.parse(removedPhotos) : removedPhotos;
         if (Array.isArray(removedPhotoIds)) {
-          // Remove photos from the array and delete from Cloudinary
           for (const photoId of removedPhotoIds) {
             const photoIndex = finalPhotos.findIndex(
-              (photo) =>
-                photo.publicId === photoId || photo._id?.toString() === photoId,
+              (photo) => photo.publicId === photoId || photo._id?.toString() === photoId,
             );
-
             if (photoIndex > -1) {
               const removedPhoto = finalPhotos[photoIndex];
-              // Delete from Cloudinary
-              if (removedPhoto.publicId) {
-                await deleteFromCloudinary(removedPhoto.publicId);
-              }
+              if (removedPhoto.publicId) await deleteFromCloudinary(removedPhoto.publicId);
               finalPhotos.splice(photoIndex, 1);
             }
           }
         }
-      } catch (error) {
-        console.error("Error processing removed photos:", error);
-      }
+      } catch (error) { console.error("Error processing removed photos:", error); }
     }
 
-    // Handle removed documents
+    // ---- Documents: removed ----
     let finalDocuments = [...auction.documents];
     if (removedDocuments) {
       try {
-        const removedDocIds =
-          typeof removedDocuments === "string"
-            ? JSON.parse(removedDocuments)
-            : removedDocuments;
-
+        const removedDocIds = typeof removedDocuments === "string"
+          ? JSON.parse(removedDocuments) : removedDocuments;
         if (Array.isArray(removedDocIds)) {
           for (const docId of removedDocIds) {
             const docIndex = finalDocuments.findIndex(
               (doc) => doc.publicId === docId || doc._id?.toString() === docId,
             );
-
             if (docIndex > -1) {
               const removedDoc = finalDocuments[docIndex];
-              // Delete from Cloudinary
-              if (removedDoc.publicId) {
-                await deleteFromCloudinary(removedDoc.publicId);
-              }
+              if (removedDoc.publicId) await deleteFromCloudinary(removedDoc.publicId);
               finalDocuments.splice(docIndex, 1);
             }
           }
         }
-      } catch (error) {
-        console.error("Error processing removed documents:", error);
-      }
+      } catch (error) { console.error("Error processing removed documents:", error); }
     }
 
-    // Handle removed service records
+    // ---- Service records: removed ----
     let finalServiceRecords = [...(auction.serviceRecords || [])];
     if (removedServiceRecords) {
       try {
-        const removedServiceRecordIds =
-          typeof removedServiceRecords === "string"
-            ? JSON.parse(removedServiceRecords)
-            : removedServiceRecords;
-
+        const removedServiceRecordIds = typeof removedServiceRecords === "string"
+          ? JSON.parse(removedServiceRecords) : removedServiceRecords;
         if (Array.isArray(removedServiceRecordIds)) {
           for (const recordId of removedServiceRecordIds) {
             const recordIndex = finalServiceRecords.findIndex(
-              (record) =>
-                record.publicId === recordId ||
-                record._id?.toString() === recordId,
+              (record) => record.publicId === recordId || record._id?.toString() === recordId,
             );
-
             if (recordIndex > -1) {
               const removedRecord = finalServiceRecords[recordIndex];
-              // Delete from Cloudinary
-              if (removedRecord.publicId) {
-                await deleteFromCloudinary(removedRecord.publicId);
-              }
+              if (removedRecord.publicId) await deleteFromCloudinary(removedRecord.publicId);
               finalServiceRecords.splice(recordIndex, 1);
             }
           }
         }
-      } catch (error) {
-        console.error("Error processing removed service records:", error);
-      }
+      } catch (error) { console.error("Error processing removed service records:", error); }
     }
 
-    // ========== CAPTION HANDLING ==========
-
-    // 1. Get photo captions from request body
+    // ---- Caption arrays ----
     const photoCaptionsArray = [];
     if (req.body.photoCaptions) {
-      if (Array.isArray(req.body.photoCaptions)) {
-        photoCaptionsArray.push(...req.body.photoCaptions);
-      } else if (typeof req.body.photoCaptions === "string") {
-        photoCaptionsArray.push(req.body.photoCaptions);
-      }
+      if (Array.isArray(req.body.photoCaptions)) photoCaptionsArray.push(...req.body.photoCaptions);
+      else if (typeof req.body.photoCaptions === "string") photoCaptionsArray.push(req.body.photoCaptions);
     }
 
-    // 2. Get existing document captions from request body
     const existingDocumentCaptions = [];
     if (req.body.existingDocumentCaptions) {
-      if (Array.isArray(req.body.existingDocumentCaptions)) {
-        existingDocumentCaptions.push(...req.body.existingDocumentCaptions);
-      } else if (typeof req.body.existingDocumentCaptions === "string") {
-        existingDocumentCaptions.push(req.body.existingDocumentCaptions);
-      }
+      if (Array.isArray(req.body.existingDocumentCaptions)) existingDocumentCaptions.push(...req.body.existingDocumentCaptions);
+      else if (typeof req.body.existingDocumentCaptions === "string") existingDocumentCaptions.push(req.body.existingDocumentCaptions);
     }
 
-    // 3. Get new document captions from request body
     const newDocumentCaptions = [];
     if (req.body.newDocumentCaptions) {
-      if (Array.isArray(req.body.newDocumentCaptions)) {
-        newDocumentCaptions.push(...req.body.newDocumentCaptions);
-      } else if (typeof req.body.newDocumentCaptions === "string") {
-        newDocumentCaptions.push(req.body.newDocumentCaptions);
-      }
+      if (Array.isArray(req.body.newDocumentCaptions)) newDocumentCaptions.push(...req.body.newDocumentCaptions);
+      else if (typeof req.body.newDocumentCaptions === "string") newDocumentCaptions.push(req.body.newDocumentCaptions);
     }
 
-    // 4. Get service record captions from request body
     const serviceRecordCaptionsArray = [];
     if (req.body.serviceRecordCaptions) {
-      if (Array.isArray(req.body.serviceRecordCaptions)) {
-        serviceRecordCaptionsArray.push(...req.body.serviceRecordCaptions);
-      } else if (typeof req.body.serviceRecordCaptions === "string") {
-        serviceRecordCaptionsArray.push(req.body.serviceRecordCaptions);
-      }
+      if (Array.isArray(req.body.serviceRecordCaptions)) serviceRecordCaptionsArray.push(...req.body.serviceRecordCaptions);
+      else if (typeof req.body.serviceRecordCaptions === "string") serviceRecordCaptionsArray.push(req.body.serviceRecordCaptions);
     }
 
-    // ========== PHOTO UPDATES ==========
-
-    // Update captions for ALL photos
+    // ---- Photo captions for existing ----
     finalPhotos.forEach((photo, index) => {
       if (index < photoCaptionsArray.length) {
         photo.caption = photoCaptionsArray[index] || "";
       }
     });
 
-    // Handle new photo uploads
+    // ---- New photo uploads ----
     const newPhotos = [];
     if (req.files && req.files.photos) {
-      const photos = Array.isArray(req.files.photos)
-        ? req.files.photos
-        : [req.files.photos];
-
+      const photos = Array.isArray(req.files.photos) ? req.files.photos : [req.files.photos];
       for (const [index, photo] of photos.entries()) {
         try {
-          const result = await uploadImageToCloudinary(
-            photo.buffer,
-            "auction-photos",
-          );
+          const result = await uploadImageToCloudinary(photo.buffer, "auction-photos");
           newPhotos.push({
             url: result.secure_url,
             publicId: result.public_id,
@@ -1137,37 +921,26 @@ export const updateAuction = async (req, res) => {
       }
     }
 
-    // Handle photo ordering
+    // ---- Photo order ----
     if (photoOrder) {
       try {
-        const parsedPhotoOrder =
-          typeof photoOrder === "string" ? JSON.parse(photoOrder) : photoOrder;
-
+        const parsedPhotoOrder = typeof photoOrder === "string" ? JSON.parse(photoOrder) : photoOrder;
         if (Array.isArray(parsedPhotoOrder)) {
-          // Create a map of existing photos by their ID for quick lookup
           const existingPhotosMap = new Map();
           finalPhotos.forEach((photo) => {
             const photoId = photo.publicId || photo._id?.toString();
-            if (photoId) {
-              existingPhotosMap.set(photoId, photo);
-            }
+            if (photoId) existingPhotosMap.set(photoId, photo);
           });
-
-          // Track used new photos to prevent duplicates
           const usedNewPhotos = new Set();
           const reorderedPhotos = [];
-
           for (const orderItem of parsedPhotoOrder) {
             if (orderItem.isExisting) {
-              // Find existing photo by ID
               const existingPhoto = existingPhotosMap.get(orderItem.id);
               if (existingPhoto) {
                 reorderedPhotos.push(existingPhoto);
-                // Remove from map to avoid duplicates
                 existingPhotosMap.delete(orderItem.id);
               }
             } else {
-              // For new photos, find by the temporary ID from frontend
               let foundNewPhoto = null;
               for (let i = 0; i < newPhotos.length; i++) {
                 if (!usedNewPhotos.has(i)) {
@@ -1176,57 +949,36 @@ export const updateAuction = async (req, res) => {
                   break;
                 }
               }
-
-              if (foundNewPhoto) {
-                reorderedPhotos.push(foundNewPhoto);
-              }
+              if (foundNewPhoto) reorderedPhotos.push(foundNewPhoto);
             }
           }
-
-          // Add any remaining existing photos that weren't in the photoOrder
           existingPhotosMap.forEach((photo) => reorderedPhotos.push(photo));
-
-          // Add any remaining new photos that weren't used
           newPhotos.forEach((photo, index) => {
-            if (!usedNewPhotos.has(index)) {
-              reorderedPhotos.push(photo);
-            }
+            if (!usedNewPhotos.has(index)) reorderedPhotos.push(photo);
           });
-
           finalPhotos = reorderedPhotos;
         }
       } catch (error) {
         console.error("Error processing photo order:", error);
-        // Fallback: append new photos at the end
         finalPhotos = [...finalPhotos, ...newPhotos];
       }
     } else {
-      // If no photoOrder is provided, just append new photos at the end
       finalPhotos = [...finalPhotos, ...newPhotos];
     }
 
-    // ========== DOCUMENT UPDATES ==========
-
-    // Update captions for existing documents
+    // ---- Document captions ----
     finalDocuments.forEach((doc, index) => {
       if (index < existingDocumentCaptions.length) {
         doc.caption = existingDocumentCaptions[index] || "";
       }
     });
 
-    // Handle new document uploads
+    // ---- New document uploads ----
     if (req.files && req.files.documents) {
-      const documents = Array.isArray(req.files.documents)
-        ? req.files.documents
-        : [req.files.documents];
-
+      const documents = Array.isArray(req.files.documents) ? req.files.documents : [req.files.documents];
       for (const [index, doc] of documents.entries()) {
         try {
-          const result = await uploadDocumentToCloudinary(
-            doc.buffer,
-            doc.originalname,
-            "auction-documents",
-          );
+          const result = await uploadDocumentToCloudinary(doc.buffer, doc.originalname, "auction-documents");
           finalDocuments.push({
             url: result.secure_url,
             publicId: result.public_id,
@@ -1245,28 +997,20 @@ export const updateAuction = async (req, res) => {
       }
     }
 
-    // ========== SERVICE RECORD UPDATES ==========
-
-    // Update captions for ALL service records
+    // ---- Service record captions ----
     finalServiceRecords.forEach((record, index) => {
       if (index < serviceRecordCaptionsArray.length) {
         record.caption = serviceRecordCaptionsArray[index] || "";
       }
     });
 
-    // Handle new service record uploads
+    // ---- New service record uploads ----
     const newServiceRecords = [];
     if (req.files && req.files.serviceRecords) {
-      const serviceRecords = Array.isArray(req.files.serviceRecords)
-        ? req.files.serviceRecords
-        : [req.files.serviceRecords];
-
+      const serviceRecords = Array.isArray(req.files.serviceRecords) ? req.files.serviceRecords : [req.files.serviceRecords];
       for (const [index, record] of serviceRecords.entries()) {
         try {
-          const result = await uploadImageToCloudinary(
-            record.buffer,
-            "auction-service-records",
-          );
+          const result = await uploadImageToCloudinary(record.buffer, "auction-service-records");
           newServiceRecords.push({
             url: result.secure_url,
             publicId: result.public_id,
@@ -1285,41 +1029,26 @@ export const updateAuction = async (req, res) => {
       }
     }
 
-    // Handle service record ordering
+    // ---- Service record order ----
     if (serviceRecordOrder) {
       try {
-        const parsedServiceRecordOrder =
-          typeof serviceRecordOrder === "string"
-            ? JSON.parse(serviceRecordOrder)
-            : serviceRecordOrder;
-
+        const parsedServiceRecordOrder = typeof serviceRecordOrder === "string" ? JSON.parse(serviceRecordOrder) : serviceRecordOrder;
         if (Array.isArray(parsedServiceRecordOrder)) {
-          // Create a map of existing service records by their ID for quick lookup
           const existingServiceRecordsMap = new Map();
           finalServiceRecords.forEach((record) => {
             const recordId = record.publicId || record._id?.toString();
-            if (recordId) {
-              existingServiceRecordsMap.set(recordId, record);
-            }
+            if (recordId) existingServiceRecordsMap.set(recordId, record);
           });
-
-          // Track used new service records to prevent duplicates
           const usedNewServiceRecords = new Set();
           const reorderedServiceRecords = [];
-
           for (const orderItem of parsedServiceRecordOrder) {
             if (orderItem.isExisting) {
-              // Find existing service record by ID
-              const existingRecord = existingServiceRecordsMap.get(
-                orderItem.id,
-              );
+              const existingRecord = existingServiceRecordsMap.get(orderItem.id);
               if (existingRecord) {
                 reorderedServiceRecords.push(existingRecord);
-                // Remove from map to avoid duplicates
                 existingServiceRecordsMap.delete(orderItem.id);
               }
             } else {
-              // For new service records, find by the temporary ID from frontend
               let foundNewRecord = null;
               for (let i = 0; i < newServiceRecords.length; i++) {
                 if (!usedNewServiceRecords.has(i)) {
@@ -1328,53 +1057,46 @@ export const updateAuction = async (req, res) => {
                   break;
                 }
               }
-
-              if (foundNewRecord) {
-                reorderedServiceRecords.push(foundNewRecord);
-              }
+              if (foundNewRecord) reorderedServiceRecords.push(foundNewRecord);
             }
           }
-
-          // Add any remaining existing service records that weren't in the order
-          existingServiceRecordsMap.forEach((record) =>
-            reorderedServiceRecords.push(record),
-          );
-
-          // Add any remaining new service records that weren't used
+          existingServiceRecordsMap.forEach((record) => reorderedServiceRecords.push(record));
           newServiceRecords.forEach((record, index) => {
-            if (!usedNewServiceRecords.has(index)) {
-              reorderedServiceRecords.push(record);
-            }
+            if (!usedNewServiceRecords.has(index)) reorderedServiceRecords.push(record);
           });
-
           finalServiceRecords = reorderedServiceRecords;
         }
       } catch (error) {
         console.error("Error processing service record order:", error);
-        // Fallback: append new service records at the end
         finalServiceRecords = [...finalServiceRecords, ...newServiceRecords];
       }
     } else {
-      // If no serviceRecordOrder is provided, just append new service records at the end
       finalServiceRecords = [...finalServiceRecords, ...newServiceRecords];
     }
 
-    // ========== DATE VALIDATION ==========
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const now = new Date();
+    // ---- Existing service record captions ----
+    const existingServiceRecordCaptions = req.body.existingServiceRecordCaptions || [];
+    finalServiceRecords.forEach((record, index) => {
+      if (index < existingServiceRecordCaptions.length && existingServiceRecordCaptions[index] !== undefined) {
+        record.caption = existingServiceRecordCaptions[index] || "";
+      }
+    });
 
-    if (end <= start) {
-      return res.status(400).json({
-        success: false,
-        message: "End date must be after start date",
-      });
+    // ---- Dates ----
+    let start = null;
+    let end = null;
+    if (!isProduct) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+      if (end <= start) {
+        return res.status(400).json({ success: false, message: "End date must be after start date" });
+      }
     }
 
-    // ========== STATUS DETERMINATION ==========
-    let newStatus = "draft";
+    // ---- Status: seller edits send back to draft (existing behavior) ----
+    const newStatus = "draft";
 
-    // ========== PREPARE UPDATE DATA ==========
+    // ---- Build update ----
     const updateData = {
       title,
       categories: categoriesArray,
@@ -1394,28 +1116,18 @@ export const updateAuction = async (req, res) => {
       status: newStatus,
     };
 
-    // Add bid increment only for standard and reserve auctions
     if (auctionType === "standard" || auctionType === "reserve") {
       updateData.bidIncrement = parseFloat(bidIncrement);
     } else {
       updateData.bidIncrement = undefined;
     }
 
-    // Add reserve price if applicable
-    if (auctionType === "reserve") {
-      updateData.reservePrice = parseFloat(reservePrice);
-    } else {
-      updateData.reservePrice = undefined;
-    }
+    if (auctionType === "reserve") updateData.reservePrice = parseFloat(reservePrice);
+    else updateData.reservePrice = undefined;
 
-    // Add buy now price if applicable
-    if (auctionType === "buy_now") {
-      updateData.buyNowPrice = parseFloat(buyNowPrice);
-    } else {
-      updateData.buyNowPrice = undefined;
-    }
+    if (auctionType === "buy_now") updateData.buyNowPrice = parseFloat(buyNowPrice);
+    else updateData.buyNowPrice = undefined;
 
-    // Add reset fields for ended auctions
     if (isEndedAuction) {
       updateData.bids = [];
       updateData.offers = [];
@@ -1449,24 +1161,23 @@ export const updateAuction = async (req, res) => {
       runValidators: true,
     }).populate("seller", "username firstName lastName");
 
-    // ========== RESCHEDULE JOBS ==========
-    if (
-      start.getTime() !== new Date(auction.startDate).getTime() ||
-      end.getTime() !== new Date(auction.endDate).getTime()
-    ) {
+    // ---- Reschedule jobs (products: cancel only) ----
+    if (isProduct) {
       await agendaService.cancelAuctionJobs(auction._id);
+    } else {
+      const oldStart = auction.startDate ? new Date(auction.startDate).getTime() : null;
+      const oldEnd = auction.endDate ? new Date(auction.endDate).getTime() : null;
+      const datesChanged =
+        start.getTime() !== oldStart || end.getTime() !== oldEnd;
 
-      // Only schedule jobs for timed auctions (standard/reserve)
-      if (auctionType === "standard" || auctionType === "reserve") {
-        if (start > new Date()) {
-          await agendaService.scheduleAuctionActivation(
-            updatedAuction._id,
-            start,
-          );
+      if (datesChanged) {
+        await agendaService.cancelAuctionJobs(auction._id);
+        if (auctionType === "standard" || auctionType === "reserve") {
+          if (start > new Date()) {
+            await agendaService.scheduleAuctionActivation(updatedAuction._id, start);
+          }
+          await agendaService.scheduleAuctionEnd(updatedAuction._id, end);
         }
-        await agendaService.scheduleAuctionEnd(updatedAuction._id, end);
-      } else {
-        console.log(`🛒 ${auctionType} auction ${id} - no jobs scheduled`);
       }
     }
 
@@ -1645,7 +1356,15 @@ export const getUserAuctions = async (req, res) => {
     const user = req.user;
     const { status, page = 1, limit = 10 } = req.query;
 
-    const filter = { seller: user._id };
+    const { context } = req.query;
+    let filter = { seller: user._id };
+
+    if (context === "product") {
+      filter.auctionType = "buy_now";
+    } else if (context === "auction") {
+      filter.auctionType = { $ne: "buy_now" };
+    }
+
     if (status && status.trim() !== "") {
       filter.status = status;
     }
@@ -1826,10 +1545,17 @@ export const getWonAuctions = async (req, res) => {
     const { page = 1, limit = 100, status, search } = req.query;
 
     // Build filter for auctions won by user
-    const filter = {
+    let filter = {
       winner: userId,
       status: { $in: ["sold", "ended"] }, // Include both sold and ended auctions where user won
     };
+
+    const { context } = req.query;
+    if (context === "product") {
+      filter.auctionType = "buy_now";
+    } else if (context === "auction") {
+      filter.auctionType = { $ne: "buy_now" };
+    }
 
     // Add status filter if provided
     if (status && status !== "all") {
@@ -2051,10 +1777,17 @@ export const getSoldAuctions = async (req, res) => {
     const { page = 1, limit = 12, status, search } = req.query;
 
     // Build filter for auctions sold by this seller
-    const filter = {
+    let filter = {
       seller: sellerId,
       status: { $in: ["sold", "ended"] }, // Auctions that have been sold or ended
     };
+
+    const { context } = req.query;
+    if (context === "product") {
+      filter.auctionType = "buy_now";
+    } else if (context === "auction") {
+      filter.auctionType = { $ne: "buy_now" };
+    }
 
     // Add status filter if provided
     if (status && status !== "all") {
@@ -2063,7 +1796,11 @@ export const getSoldAuctions = async (req, res) => {
         ended: "ended",
         reserve_not_met: "reserve_not_met",
       };
-      filter.status = statusMap[status] || status;
+      if (context === "product") {
+        filter.status = { $in: ["sold"] };
+      }else {
+        filter.status = statusMap[status] || status;
+      }
     }
 
     // Add search filter
@@ -2120,6 +1857,7 @@ export const getSoldAuctions = async (req, res) => {
                 finalBid: bid.amount,
                 bidTime: bid.timestamp,
                 isWinner: auction.winner?._id?.toString() === bidderId,
+                commissionAmount: auction?.commissionAmount
               },
             ];
           }
@@ -2148,6 +1886,7 @@ export const getSoldAuctions = async (req, res) => {
         winningBid: auction.finalPrice || auction.currentPrice,
         startTime: auction.startDate,
         endTime: auction.endDate,
+        commissionAmount: auction.commissionAmount,
         winner: auction.winner
           ? {
             id: auction.winner._id.toString(),
@@ -2399,7 +2138,7 @@ export const buyNow = async (req, res) => {
     }
 
     // For regular auctions, check end date
-    if (auction.auctionType !== "giveaway" && new Date() > auction.endDate) {
+    if ((auction.auctionType !== "giveaway" && auction.auctionType !== "buy_now") && new Date() > auction.endDate) {
       return res.status(400).json({
         success: false,
         message: "Auction has already ended",
@@ -2577,10 +2316,12 @@ export const getHotListing = async (req, res) => {
     const now = new Date();
 
     // Build filter for active listings (status active, endDate in future)
-    const filter = {
+    let filter = {
       status: "active",
       endDate: { $gt: now },
     };
+
+    filter.auctionType = { $ne: "buy_now" };
 
     // Optional: add category filter if provided
     if (req.query.category && req.query.category !== "all") {
@@ -2595,7 +2336,7 @@ export const getHotListing = async (req, res) => {
 
     if (!listings.length) {
       // Fallback 1: try ended but sold listings (for demo/empty state)
-      listings = await Auction.find({ status: "approved" })
+      listings = await Auction.find({ status: "approved", auctionType: { $ne: "buy_now" } })
         .populate("seller", "username companyName firstName lastName location")
         .populate("winner", "username companyName firstName")
         .sort({ finalPrice: -1 })

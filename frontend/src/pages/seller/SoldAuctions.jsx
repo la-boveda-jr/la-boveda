@@ -18,7 +18,9 @@ function SoldAuctions() {
             setLoading(true);
             setError(null);
 
-            const { data } = await axiosInstance.get("/api/v1/auctions/sold-auctions");
+            const { data } = await axiosInstance.get("/api/v1/auctions/sold-auctions", {
+                params: { context: 'auction' }
+            });
 
             if (data.success) {
                 const transformedAuctions = transformAuctionData(data.data.auctions);
@@ -243,7 +245,7 @@ function SoldAuctions() {
                                     </div>
                                     <div className="bg-green-50 border border-green-200 text-green-800 px-5 py-4 rounded-xl">
                                         <div className="text-sm font-medium">Winning Bid</div>
-                                        <div className="text-2xl font-bold">{formatCurrency(selectedAuction.winningBid)}</div>
+                                        <div className="text-2xl font-bold">{formatCurrency(selectedAuction.winningBid)} <span className="text-[12px]">(-{formatCurrency(selectedAuction?.commissionAmount)})</span></div>
                                         <div className="text-xs mt-1">Auction completed</div>
                                     </div>
                                 </div>
@@ -292,12 +294,12 @@ function SoldAuctions() {
                                         </div>
                                         <div className="flex-1">
                                             <h4 className="text-xl font-bold text-gray-900">{selectedAuction.winner.name}</h4>
-                                            <p className="text-gray-600">@{selectedAuction.winner.username}</p>
+                                            <p className="text-gray-600">{selectedAuction.winner.username}</p>
                                             <div className="flex flex-wrap gap-4 mt-3">
                                                 <div>
                                                     <div className="text-sm text-gray-500">Final Bid</div>
                                                     <div className="font-medium text-green-600">{formatCurrency(selectedAuction.winningBid)}</div>
-                                                </div>
+                                                </div>{console.log(selectedAuction)}
                                             </div>
                                             {selectedAuction?.paymentStatus && <div className="flex flex-wrap gap-4 mt-3">
                                                 <div>

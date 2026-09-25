@@ -51,7 +51,8 @@ function AllAuctions() {
                     page,
                     limit: 10,
                     search,
-                    filter: auctionFilter !== 'all' ? auctionFilter : undefined
+                    filter: auctionFilter !== 'all' ? auctionFilter : undefined,
+                    context: 'auction'
                 }
             });
 

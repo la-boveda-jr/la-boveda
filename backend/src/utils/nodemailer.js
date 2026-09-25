@@ -99,6 +99,17 @@ const formatCurrency = (amount) => {
     return `$${Number(amount).toFixed(0).toLocaleString('en-US')}`;
 };
 
+// ============================================
+// LISTING LABEL HELPER
+// Products (buy_now) get "Product" wording, others get "Auction"
+// ============================================
+
+const getListingLabel = (listing) =>
+    listing?.auctionType === "buy_now" ? "Product" : "Auction";
+
+const getListingLabelLower = (listing) =>
+    listing?.auctionType === "buy_now" ? "product" : "auction";
+
 // Get time remaining
 const getTimeRemaining = (endDate) => {
     if (!endDate) return 'Time not available';
@@ -300,7 +311,7 @@ const contactConfirmationEmail = async (name, email) => {
                 <p style="margin: 0 0 16px 0; font-size: 18px; color: ${BRAND_COLORS.secondary};">Dear ${name},</p>
                 <p style="margin: 0 0 16px 0;">Thank you for reaching out to <strong>${BRAND_NAME}</strong>. We have successfully received your inquiry and appreciate you taking the time to contact us.</p>
                 <p style="margin: 0 0 16px 0;">Our dedicated team is currently reviewing your message and will get back to you within <strong>24-48 hours</strong>.</p>
-                <p style="margin: 0;">We're committed to providing you with the best possible service and look forward to assisting you with your auction needs.</p>
+                <p style="margin: 0;">We're committed to providing you with the best possible service and look forward to assisting you with your marketplace needs.</p>
             `, 'default')}
             <div style="background: ${BRAND_COLORS.secondary}; color: #ffffff; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
                 <div style="color: ${BRAND_COLORS.primary}; font-size: 18px; margin-bottom: 10px; font-weight: bold;">Need Immediate Assistance?</div>
@@ -347,6 +358,9 @@ const welcomeEmail = async (user) => {
             </div>
             <div style="text-align: center; margin: 15px 0;">
                 ${createButton('Browse Auctions', `${FRONTEND_URL}/auctions`, 'outline')}
+            </div>
+            <div style="text-align: center; margin: 15px 0;">
+                ${createButton('Browse Products', `${FRONTEND_URL}/products`, 'outline')}
             </div>
             <p>Need help getting started? Check out our FAQ section or contact our support team - we're here to help!</p>
         `;
@@ -445,17 +459,18 @@ const resetPasswordEmail = async (email, url) => {
 // 6. Auction submitted for admin approval
 const auctionSubmittedForApprovalEmail = async (adminEmail, auction, seller) => {
     try {
+        const label = getListingLabel(auction);
         const content = `
-            <h2 style="text-align: center;">New Listing Awaiting Approval</h2>
-            <p style="text-align: center;">A seller has submitted a new listing for review. The listing requires your approval before it can go live.</p>
+            <h2 style="text-align: center;">New ${label} Awaiting Approval</h2>
+            <p style="text-align: center;">A seller has submitted a new ${label.toLowerCase()} for review. It requires your approval before it can go live.</p>
             ${createInfoCard(`
-                <p style="margin: 0 0 12px 0;"><strong>Listing Information</strong></p>
+                <p style="margin: 0 0 12px 0;"><strong>${label} Information</strong></p>
                 ${createSummaryRow('Title:', auction.title)}
                 ${auction.subTitle ? createSummaryRow('Subtitle:', auction.subTitle) : ''}
                 ${createSummaryRow('Categories:', auction?.categories?.join(', ') || 'N/A')}
                 ${createSummaryRow('Location:', auction?.location || 'Not specified')}
-                ${createSummaryRow('Listing Type:', auction?.auctionType ? auction.auctionType.toUpperCase() : 'N/A')}
-                ${auction?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
+                ${createSummaryRow('Type:', label)}
+                ${auction?.auctionType !== 'buy_now' && auction?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
             `)}
             ${auction.specifications ? `
                 <div style="margin: 20px 0;">
@@ -476,18 +491,18 @@ const auctionSubmittedForApprovalEmail = async (adminEmail, auction, seller) => 
             </div>
             <div style="background: ${BRAND_COLORS.secondary}; color: #ffffff; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
                 <p style="margin: 0 0 12px 0;"><strong>Admin Action Required</strong></p>
-                <p style="margin: 0 0 16px 0;">Please review this listing to ensure timely activation.</p>
-                ${createButton('Review Listings', `${FRONTEND_URL}/admin/auctions/all`, 'primary')}
+                <p style="margin: 0 0 16px 0;">Please review this ${label.toLowerCase()} to ensure timely activation.</p>
+                ${createButton(`Review ${label}s`, `${FRONTEND_URL}/admin/${auction?.auctionType === 'buy_now' ? 'products' : 'auctions'}/all`, 'primary')}
             </div>
         `;
-        const html = baseTemplate(content, 'Listing Approval Required');
+        const html = baseTemplate(content, `${label} Approval Required`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: adminEmail,
-            subject: `New Listing for Approval - ${auction.title}`,
+            subject: `New ${label} for Approval - ${auction.title}`,
             html
         });
-        console.log(`Listing submission email sent to admin for auction ${auction._id}`);
+        console.log(`${label} submission email sent to admin for ${auction._id}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send listing submission email:`, error);
@@ -498,17 +513,20 @@ const auctionSubmittedForApprovalEmail = async (adminEmail, auction, seller) => 
 // 7. Auction approved and live for seller
 const auctionApprovedEmail = async (seller, listing) => {
     try {
+        const label = getListingLabel(listing);
+        const isProduct = listing?.auctionType === 'buy_now';
+        const url = `${FRONTEND_URL}/${isProduct ? 'product' : 'auction'}/${listing?._id}`;
         const content = `
-            <h2 style="text-align: center;">Listing Approved and Live</h2>
-            <p style="text-align: center;">Great news! Your listing has been approved and is now live on ${BRAND_NAME}.</p>
+            <h2 style="text-align: center;">${label} Approved and Live</h2>
+            <p style="text-align: center;">Great news! Your ${label.toLowerCase()} has been approved and is now live on ${BRAND_NAME}.</p>
             ${createInfoCard(`
-                <p style="margin: 0 0 12px 0;"><strong>Listing Details</strong></p>
+                <p style="margin: 0 0 12px 0;"><strong>${label} Details</strong></p>
                 ${createSummaryRow('Title:', listing.title)}
                 ${listing.subTitle ? createSummaryRow('Subtitle:', listing.subTitle) : ''}
-                ${createSummaryRow('Listing Type:', listing?.auctionType ? listing.auctionType.toUpperCase() : 'N/A')}
-                ${listing?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
-                ${listing?.buyNowPrice ? createSummaryRow('Buy Now Price:', formatCurrency(listing.buyNowPrice)) : ''}
-                ${createSummaryRow('Listing Price:', formatCurrency(listing?.startPrice))}
+                ${createSummaryRow('Type:', label)}
+                ${!isProduct && listing?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
+                ${!isProduct && listing?.buyNowPrice ? createSummaryRow('Buy Now Price:', formatCurrency(listing.buyNowPrice)) : ''}
+                ${createSummaryRow('Price:', formatCurrency(isProduct ? listing?.buyNowPrice : listing?.startPrice))}
             `)}
             ${listing.specifications && listing.specifications.size > 0 ? `
                 <div style="margin: 20px 0;">
@@ -517,23 +535,23 @@ const auctionApprovedEmail = async (seller, listing) => {
                 </div>
             ` : ''}
             <div style="background: ${BRAND_COLORS.grayBg}; padding: 12px 16px; border-radius: 12px; margin: 20px 0; word-break: break-all;">
-                <strong>Your Listing URL:</strong><br>
-                <a href="${FRONTEND_URL}/auction/${listing?._id}" style="color: ${BRAND_COLORS.primary};">${FRONTEND_URL}/auction/${listing?._id}</a>
+                <strong>Your ${label} URL:</strong><br>
+                <a href="${url}" style="color: ${BRAND_COLORS.primary};">${url}</a>
             </div>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Your Live Listing', `${FRONTEND_URL}/auction/${listing?._id}`, 'primary')}
+                ${createButton(`View Your Live ${label}`, url, 'primary')}
             </div>
             <p>Your item is now searchable and visible to our community. We wish you a quick and successful sale!</p>
             <p>For any questions about the selling process or if you need assistance, our support team is here to help.</p>
         `;
-        const html = baseTemplate(content, 'Listing Approved');
+        const html = baseTemplate(content, `${label} Approved`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: seller.email,
-            subject: `Your Listing is Live: ${listing?.title}`,
+            subject: `Your ${label} is Live: ${listing?.title}`,
             html
         });
-        console.log(`Listing approved email sent to seller ${seller.email}`);
+        console.log(`${label} approved email sent to seller ${seller.email}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send listing approved email:`, error);
@@ -544,17 +562,20 @@ const auctionApprovedEmail = async (seller, listing) => {
 // 8. Auction listed and live for seller
 const auctionListedEmail = async (listing, seller) => {
     try {
+        const label = getListingLabel(listing);
+        const isProduct = listing?.auctionType === 'buy_now';
+        const url = `${FRONTEND_URL}/${isProduct ? 'product' : 'auction'}/${listing?._id}`;
         const content = `
-            <h2>Your Listing is Now Live</h2>
-            <p>Great news! Your listing is now active and visible to potential buyers on ${BRAND_NAME}.</p>
+            <h2>Your ${label} is Now Live</h2>
+            <p>Great news! Your ${label.toLowerCase()} is now active and visible to potential buyers on ${BRAND_NAME}.</p>
             ${createInfoCard(`
-                <p style="margin: 0 0 12px 0;"><strong>Listing Details</strong></p>
+                <p style="margin: 0 0 12px 0;"><strong>${label} Details</strong></p>
                 ${createSummaryRow('Title:', listing.title)}
                 ${listing.subTitle ? createSummaryRow('Subtitle:', listing.subTitle) : ''}
-                ${createSummaryRow('Listing Type:', listing?.auctionType ? listing.auctionType.toUpperCase() : 'N/A')}
-                ${listing?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
-                ${listing?.buyNowPrice ? createSummaryRow('Buy Now Price:', formatCurrency(listing.buyNowPrice)) : ''}
-                ${createSummaryRow('Listing Price:', formatCurrency(listing?.startPrice))}
+                ${createSummaryRow('Type:', label)}
+                ${!isProduct && listing?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
+                ${!isProduct && listing?.buyNowPrice ? createSummaryRow('Buy Now Price:', formatCurrency(listing.buyNowPrice)) : ''}
+                ${createSummaryRow('Price:', formatCurrency(isProduct ? listing?.buyNowPrice : listing?.startPrice))}
             `)}
             ${listing.specifications && listing.specifications.size > 0 ? `
                 <div style="margin: 20px 0;">
@@ -563,22 +584,22 @@ const auctionListedEmail = async (listing, seller) => {
                 </div>
             ` : ''}
             <div style="background: ${BRAND_COLORS.grayBg}; padding: 12px 16px; border-radius: 12px; margin: 20px 0; word-break: break-all;">
-                <strong>Your Listing URL:</strong><br>
-                <a href="${FRONTEND_URL}/auction/${listing?._id}" style="color: ${BRAND_COLORS.primary};">${FRONTEND_URL}/auction/${listing?._id}</a>
+                <strong>Your ${label} URL:</strong><br>
+                <a href="${url}" style="color: ${BRAND_COLORS.primary};">${url}</a>
             </div>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Your Live Listing', `${FRONTEND_URL}/auction/${listing?._id}`, 'primary')}
+                ${createButton(`View Your Live ${label}`, url, 'primary')}
             </div>
             <p>We wish you a quick and successful sale!</p>
         `;
-        const html = baseTemplate(content, 'Listing Live');
+        const html = baseTemplate(content, `${label} Live`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: seller.email,
-            subject: `Your Listing is Live on ${BRAND_NAME}: ${listing?.title}`,
+            subject: `Your ${label} is Live on ${BRAND_NAME}: ${listing?.title}`,
             html
         });
-        console.log(`Listing live email sent to seller ${seller?.email}`);
+        console.log(`${label} live email sent to seller ${seller?.email}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send listing live email:`, error);
@@ -589,11 +610,14 @@ const auctionListedEmail = async (listing, seller) => {
 // 9. New auction listed notification for bidders
 const newAuctionNotificationEmail = async (bidder, listing, seller) => {
     try {
+        const label = getListingLabel(listing);
+        const isProduct = listing?.auctionType === 'buy_now';
+        const url = `${FRONTEND_URL}/${isProduct ? 'product' : 'auction'}/${listing?._id}`;
         const isLive = listing?.status === "active" || listing?.status === "approved";
         const listingStatus = isLive ? "Live Now" : "Coming Soon";
         let primaryAction = "View Details";
         if (isLive) {
-            if (listing.auctionType === "buy_now" && listing?.buyNowPrice) {
+            if (isProduct && listing?.buyNowPrice) {
                 primaryAction = "Buy Now";
             } else if (listing.allowOffers) {
                 primaryAction = "Make Offer";
@@ -602,19 +626,19 @@ const newAuctionNotificationEmail = async (bidder, listing, seller) => {
             }
         }
         const content = `
-            <h2 style="text-align: center;">New Listing: ${listing?.title}</h2>
-            <p style="text-align: center;">We're excited to let you know about a new listing on ${BRAND_NAME}.</p>
+            <h2 style="text-align: center;">New ${label}: ${listing?.title}</h2>
+            <p style="text-align: center;">We're excited to let you know about a new ${label.toLowerCase()} on ${BRAND_NAME}.</p>
             <div style="background: ${BRAND_COLORS.grayBg}; padding: 8px 16px; border-radius: 20px; display: inline-block; margin: 10px 0; font-size: 14px; font-weight: bold; color: ${BRAND_COLORS.secondary};">
                 ${listingStatus}
             </div>
             ${createInfoCard(`
-                <p style="margin: 0 0 12px 0;"><strong>Listing Details</strong></p>
+                <p style="margin: 0 0 12px 0;"><strong>${label} Details</strong></p>
                 ${createSummaryRow('Title:', listing.title)}
                 ${listing.subTitle ? createSummaryRow('Subtitle:', listing.subTitle) : ''}
                 ${createSummaryRow('Categories:', listing?.categories?.join(', ') || 'N/A')}
                 ${createSummaryRow('Location:', listing?.location || 'Not specified')}
-                ${createSummaryRow('Listing Type:', listing?.auctionType ? listing.auctionType.toUpperCase() : 'N/A')}
-                ${listing?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
+                ${createSummaryRow('Type:', label)}
+                ${!isProduct && listing?.allowOffers ? createSummaryRow('Offers:', 'Allowed') : ''}
             `)}
             ${listing.specifications && listing.specifications.size > 0 ? `
                 <div style="margin: 20px 0;">
@@ -631,7 +655,14 @@ const newAuctionNotificationEmail = async (bidder, listing, seller) => {
             ${isLive ? `
                 <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${BRAND_COLORS.warning};">
                     <p style="margin: 0; font-weight: bold;">Available Now</p>
-                    <p style="margin: 8px 0 0 0;">${listing?.buyNowPrice ? "Use Buy Now to secure it immediately or place a bid." : listing?.allowOffers ? "Make an offer to start negotiations." : "Place a bid to compete for this item."}</p>
+                    <p style="margin: 8px 0 0 0;">${isProduct
+                    ? "Buy it immediately at the listed price."
+                    : listing?.buyNowPrice
+                        ? "Use Buy Now to secure it immediately or place a bid."
+                        : listing?.allowOffers
+                            ? "Make an offer to start negotiations."
+                            : "Place a bid to compete for this item."
+                }</p>
                 </div>
             ` : `
                 <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${BRAND_COLORS.warning};">
@@ -645,17 +676,17 @@ const newAuctionNotificationEmail = async (bidder, listing, seller) => {
                 <p style="margin: 0;">${seller?.firstName} ${seller?.lastName}</p>
             </div>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton(primaryAction, `${FRONTEND_URL}/auction/${listing?._id}`, 'primary')}
+                ${createButton(primaryAction, url, 'primary')}
             </div>
         `;
-        const html = baseTemplate(content, 'New Listing');
+        const html = baseTemplate(content, `New ${label}`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: bidder.email,
-            subject: `New Listing: ${listing?.title}`,
+            subject: `New ${label}: ${listing?.title}`,
             html
         });
-        console.log(`New listing notification sent to bidder ${bidder?.email} for listing ${listing?._id}`);
+        console.log(`New ${label} notification sent to bidder ${bidder?.email} for listing ${listing?._id}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send new listing notification:`, error);
@@ -961,7 +992,7 @@ const auctionEndingSoonEmail = async (userEmail, userName, listing) => {
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing?.title}</p>
                 ${listing.subTitle ? `<p style="margin: 0 0 16px 0; text-align: center; color: ${BRAND_COLORS.textLight};">${listing.subTitle}</p>` : ''}
-                ${createSummaryRow('Listing Type:', listing?.auctionType || 'N/A')}
+                ${createSummaryRow('Type:', getListingLabel(listing))}
                 ${createSummaryRow('Current Offers/Bids:', (listing?.offers?.length || listing?.bids?.length || 0).toLocaleString())}
                 ${listing.specifications && listing.specifications.size > 0 ? `
                     <div style="margin: 16px 0 0 0;">
@@ -996,10 +1027,14 @@ const sendAuctionEndedSellerEmail = async (listing) => {
             console.error("Seller not populated or missing email for listing:", listing?._id);
             return false;
         }
+        const label = getListingLabel(listing);
+        const isProduct = listing?.auctionType === 'buy_now';
         const isSold = listing?.status === "sold" || listing?.status === "sold_buy_now";
-        const statusMessage = isSold ? `Sold for ${formatCurrency(listing?.finalPrice || 0)}` : "Listing ended without sale";
+        const statusMessage = isSold
+        ? `Sold for ${formatCurrency(listing?.finalPrice || 0)}`
+        : `${label} ended without sale`;
         const content = `
-            <h2 style="text-align: center;">${isSold ? 'Item Sold' : 'Listing Ended'}</h2>
+            <h2 style="text-align: center;">${isSold ? 'Item Sold' : `${label} Ended`}</h2>
             <p style="text-align: center;">${statusMessage}</p>
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing?.title}</p>
@@ -1013,8 +1048,8 @@ const sendAuctionEndedSellerEmail = async (listing) => {
                     </div>
                 ` : ''}
                 ${createSummaryRow('Final Status:', listing?.status?.toUpperCase() || 'N/A')}
-                ${createSummaryRow('Original Price:', formatCurrency(listing?.buyNowPrice || listing?.startPrice || 0))}
-                ${createSummaryRow('Total Offers:', (listing?.offers?.length || 0).toLocaleString())}
+                ${createSummaryRow('Price:', formatCurrency(isProduct ? listing?.buyNowPrice : (listing?.startPrice || 0)))}
+                ${!isProduct ? createSummaryRow('Total Offers:', (listing?.offers?.length || 0).toLocaleString()) : ''}
                 ${createSummaryRow('Total Views:', (listing?.views || 0).toLocaleString())}
             `)}
             ${isSold && listing?.winner ? `
@@ -1025,17 +1060,19 @@ const sendAuctionEndedSellerEmail = async (listing) => {
             ` : `
                 <div style="background: ${BRAND_COLORS.grayBg}; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid ${BRAND_COLORS.warning};">
                     <p style="margin: 0;"><strong>No Sale This Time</strong></p>
-                    <p style="margin: 8px 0 0 0;">Your listing ended without a sale.</p>
+                    <p style="margin: 8px 0 0 0;">Your ${label.toLowerCase()} ended without a sale.</p>
                 </div>
             `}
             <p>Dear ${listing?.seller?.firstName || listing?.seller?.companyName || listing?.seller?.username},</p>
-            <p>Your listing for <strong>${listing?.title}</strong> on ${BRAND_NAME} has ended.</p>
+            <p>Your ${label.toLowerCase()} for <strong>${listing?.title}</strong> on ${BRAND_NAME} has ended.</p>
         `;
-        const html = baseTemplate(content, isSold ? 'Item Sold' : 'Listing Ended');
+        const html = baseTemplate(content, isSold ? 'Item Sold' : `${label} Ended`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: listing?.seller?.email,
-            subject: `Your Listing Has Ended - ${listing?.title}`,
+            subject: isSold
+            ? `Your ${label} Has Been Sold - ${listing?.title}`
+            : `Your ${label} Has Ended - ${listing?.title}`,
             html
         });
         return !!info;
@@ -1052,10 +1089,11 @@ const sendAuctionWonEmail = async (listing) => {
             console.error("Winner not populated or missing email for listing:", listing?._id);
             return false;
         }
+        const isProduct = listing?.auctionType === 'buy_now';
         const finalPrice = listing?.finalPrice || listing?.currentPrice || 0;
         const content = `
-            <h2 style="text-align: center;">Congratulations! You Won the Listing</h2>
-            <p style="text-align: center;">You are the winning bidder for this item.</p>
+            <h2 style="text-align: center;">${isProduct ? 'Congratulations! You Bought the Item' : 'Congratulations! You Won the Listing'}</h2>
+            <p style="text-align: center;">${isProduct ? 'You have successfully purchased this item.' : 'You are the winning bidder for this item.'}</p>
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing.title}</p>
                 ${listing.subTitle ? `<p style="margin: 0 0 16px 0; text-align: center; color: ${BRAND_COLORS.textLight};">${listing.subTitle}</p>` : ''}
@@ -1080,7 +1118,7 @@ const sendAuctionWonEmail = async (listing) => {
             subject: `Invoice - ${listing?.title}`,
             html
         });
-        console.log(`Listing won invoice email sent to ${listing?.winner?.email}`);
+        console.log(`Invoice email sent to ${listing?.winner?.email}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send listing won invoice email for listing ${listing._id}:`, error);
@@ -1091,9 +1129,11 @@ const sendAuctionWonEmail = async (listing) => {
 // 20. Auction won notification for admin
 const auctionWonAdminEmail = async (adminEmail, listing, buyer) => {
     try {
+        const label = getListingLabel(listing);
+        const isProduct = listing?.auctionType === 'buy_now';
         const content = `
-            <h2 style="text-align: center;">Item Sold</h2>
-            <p style="text-align: center;">A listing has been successfully completed with a buyer.</p>
+            <h2 style="text-align: center;">${label} Sold</h2>
+            <p style="text-align: center;">A ${label.toLowerCase()} has been successfully completed with a buyer.</p>
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing?.title}</p>
                 ${listing.subTitle ? `<p style="margin: 0 0 16px 0; text-align: center; color: ${BRAND_COLORS.textLight};">${listing.subTitle}</p>` : ''}
@@ -1104,9 +1144,9 @@ const auctionWonAdminEmail = async (adminEmail, listing, buyer) => {
                         ${renderSpecifications(listing.specifications)}
                     </div>
                 ` : ''}
-                ${createSummaryRow('Sale Type:', listing?.auctionType || 'N/A')}
+                ${createSummaryRow('Sale Type:', label)}
                 ${createSummaryRow('Categories:', listing?.categories?.join(', ') || 'N/A')}
-                ${createSummaryRow('Total Offers/Bids:', (listing?.offers?.length || listing?.bids?.length || 0).toLocaleString())}
+                ${!isProduct ? createSummaryRow('Total Offers/Bids:', (listing?.offers?.length || listing?.bids?.length || 0).toLocaleString()) : ''}
                 ${createSummaryRow('Sale Status:', 'Completed')}
                 ${createSummaryRow('Payment:', listing?.paymentStatus || 'Pending')}
             `)}
@@ -1124,14 +1164,14 @@ const auctionWonAdminEmail = async (adminEmail, listing, buyer) => {
                 ${listing?.seller?.phone ? createSummaryRow('Phone:', listing?.seller?.phone) : ''}
             </div>
         `;
-        const html = baseTemplate(content, 'Item Sold');
+        const html = baseTemplate(content, `${label} Sold`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: adminEmail,
-            subject: `Item Sold - ${listing?.title}`,
+            subject: `${label} Sold - ${listing?.title}`,
             html
         });
-        console.log(`Listing sold admin email sent for listing ${listing._id}`);
+        console.log(`${label} sold admin email sent for ${listing._id}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send listing sold admin email:`, error);
@@ -1142,11 +1182,13 @@ const auctionWonAdminEmail = async (adminEmail, listing, buyer) => {
 // 21. Auction ended notification for admin
 const auctionEndedAdminEmail = async (adminEmail, listing) => {
     try {
+        const label = getListingLabel(listing);
+        const isProduct = listing?.auctionType === 'buy_now';
         const isSold = listing.status === "sold" || listing.status === "sold_buy_now";
         const statusDisplay = isSold ? 'Sold' : 'Ended';
         const content = `
-            <h2 style="text-align: center;">Listing ${statusDisplay}</h2>
-            <p style="text-align: center;">A listing on ${BRAND_NAME} has ended.</p>
+            <h2 style="text-align: center;">${label} ${statusDisplay}</h2>
+            <p style="text-align: center;">A ${label.toLowerCase()} on ${BRAND_NAME} has ended.</p>
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing.title}</p>
                 ${listing.subTitle ? `<p style="margin: 0 0 16px 0; text-align: center; color: ${BRAND_COLORS.textLight};">${listing.subTitle}</p>` : ''}
@@ -1159,13 +1201,13 @@ const auctionEndedAdminEmail = async (adminEmail, listing) => {
                         ${renderSpecifications(listing.specifications)}
                     </div>
                 ` : ''}
-                ${createSummaryRow('Listing Type:', listing?.auctionType || 'N/A')}
+                ${createSummaryRow('Type:', label)}
                 ${createSummaryRow('Categories:', listing?.categories?.join(', ') || 'N/A')}
-                ${createSummaryRow('Original Price:', formatCurrency(listing?.startPrice || listing?.buyNowPrice || 0))}
+                ${createSummaryRow('Price:', formatCurrency(isProduct ? listing?.buyNowPrice : (listing?.startPrice || 0)))}
                 ${createSummaryRow('Final Status:', listing?.status?.toUpperCase() || 'N/A')}
-                ${createSummaryRow('Total Offers/Bids:', (listing?.offers?.length || listing?.bids?.length || 0).toLocaleString())}
+                ${!isProduct ? createSummaryRow('Total Offers/Bids:', (listing?.offers?.length || listing?.bids?.length || 0).toLocaleString()) : ''}
                 ${createSummaryRow('Total Views:', (listing?.views || 0).toLocaleString())}
-                ${createSummaryRow('Listing ID:', listing?._id?.toString() || 'N/A')}
+                ${createSummaryRow(`${label} ID:`, listing?._id?.toString() || 'N/A')}
             `)}
             ${listing?.seller ? `
                 <div style="background: ${BRAND_COLORS.grayBg}; padding: 20px; border-radius: 8px; margin: 25px 0;">
@@ -1184,14 +1226,14 @@ const auctionEndedAdminEmail = async (adminEmail, listing) => {
                 </div>
             ` : ''}
         `;
-        const html = baseTemplate(content, `Listing ${statusDisplay}`);
+        const html = baseTemplate(content, `${label} ${statusDisplay}`);
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: adminEmail,
-            subject: `Listing ${statusDisplay} - ${listing?.title}`,
+            subject: `${label} ${statusDisplay} - ${listing?.title}`,
             html
         });
-        console.log(`Listing ended admin email sent for listing ${listing?._id} (Status: ${listing?.status})`);
+        console.log(`${label} ${statusDisplay.toLowerCase()} admin email sent for ${listing?._id}`);
         return !!info;
     } catch (error) {
         console.error(`Failed to send listing ended admin email:`, error);
@@ -1339,7 +1381,11 @@ const paymentCompletedEmail = async (user, listing) => {
             `)}
             <p>Great news! Your payment has been successfully processed and confirmed.</p>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View My Purchases', `${FRONTEND_URL}/bidder/auctions/won`, 'primary')}
+                ${createButton(
+            'View My Purchases',
+            `${FRONTEND_URL}/bidder/${listing?.auctionType === 'buy_now' ? 'products/purchased' : 'auctions/won'}`,
+            'primary'
+        )}
             </div>
         `;
         const html = baseTemplate(content, 'Payment Confirmed');
@@ -1375,7 +1421,11 @@ const paymentSuccessEmail = async (user, listing) => {
             `)}
             <p>You can check your order details from your dashboard.</p>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View My Purchases', `${FRONTEND_URL}/bidder/auctions/won`, 'primary')}
+                ${createButton(
+            'View My Purchases',
+            `${FRONTEND_URL}/bidder/${listing?.auctionType === 'buy_now' ? 'products/purchased' : 'auctions/won'}`,
+            'primary'
+        )}
             </div>
         `;
         const html = baseTemplate(content, 'Payment Successful');
@@ -1411,7 +1461,11 @@ const paymentCompletedSellerEmail = async (seller, listing, buyer) => {
             `)}
             <p>We're pleased to inform you that the buyer has successfully completed payment for your item. The funds have been received and confirmed.</p>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Sold Items', `${FRONTEND_URL}/seller/auctions/sold`, 'primary')}
+                ${createButton(
+            'View Sold Items',
+            `${FRONTEND_URL}/seller/${listing?.auctionType === 'buy_now' ? 'products/sold' : 'auctions/sold'}`,
+            'primary'
+        )}
             </div>
         `;
         const html = baseTemplate(content, 'Payment Received');
@@ -1483,8 +1537,8 @@ const flaggedCommentAdminEmail = async (adminEmail, reason, comment, listing, re
 const newCommentSellerEmail = async (seller, listing, comment, commentAuthor) => {
     try {
         const content = `
-            <h2 style="text-align: center;">New Comment on Your Listing</h2>
-            <p style="text-align: center;">${commentAuthor?.firstName || commentAuthor?.companyName || commentAuthor?.username} has commented on your listing.</p>
+            <h2 style="text-align: center;">New Comment on Your ${getListingLabel(listing)}</h2>
+            <p style="text-align: center;">${commentAuthor?.firstName || commentAuthor?.companyName || commentAuthor?.username} has commented on your ${getListingLabelLower(listing)}.</p>
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing?.title}</p>
                 ${listing.subTitle ? `<p style="margin: 0 0 16px 0; text-align: center; color: ${BRAND_COLORS.textLight};">${listing.subTitle}</p>` : ''}
@@ -1500,14 +1554,14 @@ const newCommentSellerEmail = async (seller, listing, comment, commentAuthor) =>
                 <p style="margin: 0; font-style: italic;">${comment?.content}</p>
             </div>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Listing', `${FRONTEND_URL}/auction/${listing?._id}`, 'primary')}
+                ${createButton(`View ${getListingLabel(listing)}`, `${FRONTEND_URL}/${listing?.auctionType === 'buy_now' ? 'product' : 'auction'}/${listing?._id}`, 'primary')}
             </div>
         `;
         const html = baseTemplate(content, 'New Comment');
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: seller?.email,
-            subject: `New Comment on Your Listing: ${listing.title}`,
+            subject: `New Comment on Your ${getListingLabel(listing)}: ${listing.title}`,
             html
         });
         console.log(`New comment email sent to seller ${seller.email}`);
@@ -1522,8 +1576,8 @@ const newCommentSellerEmail = async (seller, listing, comment, commentAuthor) =>
 const newCommentBidderEmail = async (bidder, listing, comment, commentAuthor) => {
     try {
         const content = `
-            <h2 style="text-align: center;">New Activity on Listing</h2>
-            <p style="text-align: center;">${commentAuthor?.firstName || commentAuthor?.companyName || commentAuthor?.username} has added a comment on a listing you're interested in.</p>
+            <h2 style="text-align: center;">New Activity on ${getListingLabel(listing)}</h2>
+            <p style="text-align: center;">${commentAuthor?.firstName || commentAuthor?.companyName || commentAuthor?.username} has added a comment on a ${getListingLabelLower(listing)} you're interested in.</p>
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${listing?.title}</p>
                 ${listing.subTitle ? `<p style="margin: 0 0 16px 0; text-align: center; color: ${BRAND_COLORS.textLight};">${listing.subTitle}</p>` : ''}
@@ -1539,14 +1593,14 @@ const newCommentBidderEmail = async (bidder, listing, comment, commentAuthor) =>
                 <p style="margin: 0; font-style: italic;">${comment?.content}</p>
             </div>
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Listing', `${FRONTEND_URL}/auction/${listing?._id}`, 'primary')}
+               ${createButton(`View ${getListingLabel(listing)}`, `${FRONTEND_URL}/${listing?.auctionType === 'buy_now' ? 'product' : 'auction'}/${listing?._id}`, 'primary')}
             </div>
         `;
         const html = baseTemplate(content, 'New Activity');
         const info = await transporter.sendMail({
             from: `"${BRAND_NAME}" <${process.env.EMAIL_USER}>`,
             to: bidder?.email,
-            subject: `New Activity on Listing: ${listing?.title}`,
+            subject: `New Activity on ${getListingLabel(listing)}: ${listing?.title}`,
             html
         });
         console.log(`New comment email sent to bidder ${bidder.email}`);
@@ -1723,7 +1777,11 @@ const payoutCompletedEmail = async (seller, auction, payout) => {
             <p>Thank you for selling with ${BRAND_NAME}! We appreciate your business.</p>
             
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Your Sales', `${FRONTEND_URL}/seller/auctions/sold`, 'primary')}
+                ${createButton(
+            'View Your Sales',
+            `${FRONTEND_URL}/seller/${auction?.auctionType === 'buy_now' ? 'products/sold' : 'auctions/sold'}`,
+            'primary'
+        )}
             </div>
         `;
         const html = baseTemplate(content, 'Payout Completed');
@@ -1796,9 +1854,10 @@ const sendOfferOutbidNotifications = async () => {
 
 const paymentInitiatedAdminEmail = async (adminEmail, payment, buyer, auction) => {
     try {
+        const label = getListingLabel(auction);
         const content = `
             <h2 style="text-align: center;">💰 New Payment Initiated</h2>
-            <p style="text-align: center;">A buyer has started a bank transfer payment for an item.</p>
+            <p style="text-align: center;">A buyer has started a bank transfer payment for a ${label.toLowerCase()}.</p>
             
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${auction?.title}</p>
@@ -1806,7 +1865,10 @@ const paymentInitiatedAdminEmail = async (adminEmail, payment, buyer, auction) =
                 
                 <div style="margin: 16px 0 0 0;">
                     ${createSummaryRow('Total Amount:', formatCurrency(payment.totalAmount))}
-                    ${createSummaryRow('Bid Amount:', formatCurrency(payment.bidAmount))}
+                    ${createSummaryRow(
+                    auction?.auctionType === 'buy_now' ? 'Purchase Amount:' : 'Bid Amount:',
+                    formatCurrency(payment.bidAmount)
+                )}
                     ${createSummaryRow('Commission:', formatCurrency(payment.commissionAmount))}
                     ${createSummaryRow('Payment Method:', 'Bank Transfer')}
                     ${payment.transactionReference ? createSummaryRow('Transaction Ref:', payment.transactionReference) : ''}
@@ -1834,7 +1896,7 @@ const paymentInitiatedAdminEmail = async (adminEmail, payment, buyer, auction) =
             </div>
             
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Payment Details', `${ADMIN_URL}/auctions/all`, 'primary')}
+                ${createButton('View Payment Details', `${ADMIN_URL}/${auction?.auctionType === 'buy_now' ? 'products' : 'auctions'}/all`, 'primary')}
             </div>
         `;
         const html = baseTemplate(content, 'New Payment Initiated');
@@ -1858,12 +1920,13 @@ const paymentInitiatedAdminEmail = async (adminEmail, payment, buyer, auction) =
 
 const shippingUpdatedEmail = async (recipient, auction, shippingInfo, updatedBy, userRole) => {
     try {
-        // recipient is a user object (admin or winning bidder)
+        const label = getListingLabel(auction);
+        const url = `${FRONTEND_URL}/${auction?.auctionType === 'buy_now' ? 'product' : 'auction'}/${auction?._id}`;
         const content = `
             <h2 style="text-align: center;">🚚 Shipping Information Updated</h2>
             <p style="text-align: center;">Hello ${recipient.firstName || recipient.username},</p>
             
-            <p>The shipping details for the auction <strong>${auction.title}</strong> have been updated by <strong>${userRole}</strong>.</p>
+            <p>The shipping details for the ${label.toLowerCase()} <strong>${auction.title}</strong> have been updated by <strong>${userRole}</strong>.</p>
             
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${auction.title}</p>
@@ -1891,7 +1954,7 @@ const shippingUpdatedEmail = async (recipient, auction, shippingInfo, updatedBy,
             }
             
             <div style="text-align: center; margin: 25px 0;">
-                ${createButton('View Auction Details', `${FRONTEND_URL}/auction/${auction._id}`, 'primary')}
+                ${createButton(`View ${label} Details`, url, 'primary')}
             </div>
             
             <div style="background: ${BRAND_COLORS.grayBg}; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; font-size: 14px; border: 1px solid ${BRAND_COLORS.grayBorder};">
@@ -1932,7 +1995,7 @@ const formatDate = (date) => {
 
 const newMessageNotificationEmail = async (recipient, sender, auction, messageContent, communicationId) => {
     try {
-        // Determine the sender's role label
+        const label = getListingLabel(auction);
         const senderRole = sender.userType === 'admin' ? 'Admin' :
             sender.userType === 'seller' ? 'Seller' : 'Bidder';
 
@@ -1940,14 +2003,14 @@ const newMessageNotificationEmail = async (recipient, sender, auction, messageCo
             <h2 style="text-align: center;">💬 New Message Received</h2>
             <p style="text-align: center;">Hello ${recipient.firstName || recipient.username},</p>
             
-            <p>You have received a new message from <strong>${senderRole}</strong> regarding your auction <strong>${auction.title}</strong>.</p>
+            <p>You have received a new message from <strong>${senderRole}</strong> regarding your ${label.toLowerCase()} <strong>${auction.title}</strong>.</p>
             
             ${createInfoCard(`
                 <p style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; color: ${BRAND_COLORS.secondary};">${auction.title}</p>
                 
                 <div style="margin: 16px 0 0 0;">
                     ${createSummaryRow('From:', `${sender.firstName || sender.username} ${sender?.lastName} (${senderRole})`)}
-                    ${createSummaryRow('Auction:', auction.title)}
+                    ${createSummaryRow(`${label}:`, auction.title)}
                 </div>
                 
                 <div style="margin-top: 16px; padding: 16px; background: #ffffff; border-radius: 8px; border: 1px solid ${BRAND_COLORS.grayBorder};">
@@ -1963,7 +2026,7 @@ const newMessageNotificationEmail = async (recipient, sender, auction, messageCo
                 ` : ''}
             `)}
             
-            <p>You can reply to this message by visiting the communication page for this auction.</p>
+            <p>You can reply to this message by visiting the communication page for this ${label.toLowerCase()}.</p>
             
             <div style="background: ${BRAND_COLORS.grayBg}; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center; font-size: 14px; border: 1px solid ${BRAND_COLORS.grayBorder};">
                 <p style="margin: 0;"><strong style="color: ${BRAND_COLORS.secondary};">Need Help?</strong> Contact our support team at <a href="mailto:${SUPPORT_EMAIL}" style="color: ${BRAND_COLORS.primary};">${SUPPORT_EMAIL}</a></p>
@@ -2005,11 +2068,11 @@ const accountApprovedEmail = async (user) => {
                 <div style="margin: 12px 0 0 0;">
                     <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid ${BRAND_COLORS.grayBorder};">
                         <span style="font-size: 20px;">🏷️</span>
-                        <span style="color: ${BRAND_COLORS.text};">Bid on auctions and compete for items</span>
+                        <span style="color: ${BRAND_COLORS.text};">Bid on auctions, compete for items, and buy them.</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0;">
                         <span style="font-size: 20px;">📤</span>
-                        <span style="color: ${BRAND_COLORS.text};">Upload your own auctions and start selling</span>
+                        <span style="color: ${BRAND_COLORS.text};">Upload your own auctions and products and start selling</span>
                     </div>
                 </div>
             `)}

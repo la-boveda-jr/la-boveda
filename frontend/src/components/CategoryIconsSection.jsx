@@ -115,7 +115,7 @@ const CategoryIconsSection = () => {
             ref={sectionRef}
             className="relative overflow-hidden"
         >
-            <Container className="my-14">
+            <Container className="mt-14">
 
                 {/* =================================================
                     HEADER

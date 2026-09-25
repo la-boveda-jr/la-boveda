@@ -1,14 +1,16 @@
 import { Router } from 'express';
 import {
     getCommissions,
-    updateCommission
+    updateCommission,
 } from '../controllers/commission.controller.js';
 import { authAdmin } from '../middlewares/auth.middleware.js';
 
 const commissionRouter = Router();
 
-// All routes require admin authentication
+// GET returns both scopes (auction + product) in one call
 commissionRouter.get('/', getCommissions);
-commissionRouter.put('/', authAdmin, updateCommission);
+
+// PUT updates a single scope
+commissionRouter.put('/:scope', authAdmin, updateCommission);
 
 export default commissionRouter;

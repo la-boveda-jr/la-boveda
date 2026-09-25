@@ -361,7 +361,7 @@ function Auctions() {
         filters: apiFilters,
         loadMoreAuctions,
         updateFilters
-    } = useAuctions();
+    } = useAuctions({}, { context: 'auction' });
 
     const [uiFilters, setUiFilters] = useState({
         categories: [],

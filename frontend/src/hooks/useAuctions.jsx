@@ -3,7 +3,8 @@ import { toast } from 'react-hot-toast';
 import axiosInstance from '../utils/axiosInstance';
 import { useLocation } from "react-router-dom";
 
-export const useAuctions = (initialFilters = {}) => {
+export const useAuctions = (initialFilters = {}, options = {}) => {
+    const { context = null } = options;
     const location = useLocation();
     const [auctions, setAuctions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -69,6 +70,10 @@ export const useAuctions = (initialFilters = {}) => {
                     Object.entries(clean).filter(([key]) => key !== 'categories')
                 )
             });
+
+            if (context) {
+                params.append('context', context);
+            }
 
             if (clean.categories && Array.isArray(clean.categories) && clean.categories.length > 0) {
                 clean.categories.forEach(cat => params.append('categories', cat));

@@ -1,36 +1,34 @@
 import { Schema, model } from 'mongoose';
 
 const commissionSchema = new Schema({
+    scope: {
+        type: String,
+        enum: ['auction', 'product'],
+        required: true,
+        unique: true,
+        index: true,
+    },
     commissionType: {
         type: String,
         enum: ['fixed', 'percentage'],
         required: true,
-        default: 'percentage'
+        default: 'percentage',
     },
-    commissionValue: { 
+    commissionValue: {
         type: Number,
         required: true,
-        min: 0
+        min: 0,
     },
     description: {
         type: String,
-        default: 'Global commission rate'
+        default: 'Global commission rate',
     },
     updatedBy: {
         type: Schema.Types.ObjectId,
-        ref: 'User'
-    }
+        ref: 'User',
+    },
 }, {
-    timestamps: true
-});
-
-// Ensure only one commission document exists
-commissionSchema.pre('save', async function(next) {
-    const count = await this.constructor.countDocuments();
-    if (count > 0 && this.isNew) {
-        throw new Error('Only one commission setting can exist');
-    }
-    next();
+    timestamps: true,
 });
 
 const Commission = model('Commission', commissionSchema);

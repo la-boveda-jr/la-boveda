@@ -29,7 +29,7 @@ const CommunicationDetail = () => {
 
     useEffect(() => {
         if (!auctionId || auctionId === "undefined") {
-            setError("Invalid auction ID");
+            setError("Invalid ID");
             setLoading(false);
             return;
         }
@@ -264,7 +264,7 @@ const CommunicationDetail = () => {
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-800">Communication</h2>
                                 <p className="text-sm text-gray-500">
-                                    Auction: <span className="font-medium">{auction?.title || "N/A"}</span>
+                                    <span className="font-medium">{auction?.title || "N/A"}</span>
                                 </p>
                             </div>
                         </div>
@@ -480,7 +480,7 @@ const CommunicationDetail = () => {
 
                                 {/* Auction summary */}
                                 <div className="bg-white rounded-xl shadow border border-gray-200 p-4">
-                                    <h3 className="font-semibold text-gray-700 mb-2">Auction Details</h3>
+                                    <h3 className="font-semibold text-gray-700 mb-2">Item Details</h3>
                                     <div className="text-sm space-y-1">
                                         <p><span className="text-gray-500">Title:</span> {auction?.title}</p>
                                         <p><span className="text-gray-500">Final Price:</span> ${auction?.finalPrice?.toLocaleString()}</p>

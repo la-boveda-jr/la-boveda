@@ -11,7 +11,10 @@ import {
     Bookmark,
     CreditCard,
     Hand,
-    DollarSign
+    DollarSign,
+    ShoppingBag,
+    BadgeCheck,
+    MessageSquare
 } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { logo } from "../../assets";
@@ -21,11 +24,14 @@ import { useAuth } from "../../contexts/AuthContext";
 const navigation = [
     { name: 'Dashboard', path: '/bidder/dashboard', icon: <LayoutDashboard size={20} /> },
     { name: 'Active Auctions', path: '/bidder/auctions/active', icon: <Gavel size={20} /> },
+    { name: 'Active Products', path: '/bidder/products/active', icon: <ShoppingBag size={20} /> },
+    { name: 'Communications', path: '/bidder/communications/all', icon: <MessageSquare size={20} /> },
     { name: 'Watchlist', path: '/bidder/watchlist', icon: <Bookmark size={20} /> },
     // { name: 'My Offers', path: '/bidder/offers', icon: <Hand size={20} /> },
     { name: 'My Bids', path: '/bidder/bids', icon: <TrendingUp size={20} /> },
     { name: 'Won Auctions', path: '/bidder/auctions/won', icon: <Award size={20} /> },
-    { name: 'Payments', path: '/bidder/payments', icon: <DollarSign size={20} /> },
+    { name: 'Bought Products', path: '/bidder/products/purchased', icon: <BadgeCheck size={20} /> },
+    // { name: 'Payments', path: '/bidder/payments', icon: <DollarSign size={20} /> },
     // { name: 'Billing', path: '/bidder/billing', icon: <CreditCard size={20} /> },
     // { name: 'Notifications', path: '/bidder/notifications', icon: <Bell size={20} /> },
     { name: 'Profile', path: '/bidder/profile', icon: <User size={20} /> },

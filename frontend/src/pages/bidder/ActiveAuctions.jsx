@@ -11,7 +11,7 @@ function ActiveAuctions() {
         loadingMore,
         pagination,
         loadMoreAuctions,
-    } = useAuctions();
+    } = useAuctions({}, { context: 'auction' });
     const [filter, setFilter] = useState("all");
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("all");
@@ -216,7 +216,7 @@ function ActiveAuctions() {
 
                         {/* Quick Filters with Status */}
                         <div className="flex flex-wrap gap-3">
-                            <button
+                            {/* <button
                                 onClick={() => setFilter("all")}
                                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${filter === "all" ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                             >
@@ -233,7 +233,7 @@ function ActiveAuctions() {
                                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${filter === "active" ? "bg-green-100 text-green-800 border border-green-200" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                             >
                                 Active This Week
-                            </button>
+                            </button> */}
                             {/* View Mode Toggle */}
                             {/* <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
                                 <button

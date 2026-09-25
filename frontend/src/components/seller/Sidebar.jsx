@@ -12,7 +12,12 @@ import {
     CreditCard,
     Hand,
     BanknoteArrowUp,
-    BanknoteArrowDown
+    BanknoteArrowDown,
+    ShoppingBag,
+    LucidePlusSquare,
+    PlusCircle,
+    BadgeCheck,
+    MessageSquare
 } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { logo } from "../../assets";
@@ -22,8 +27,12 @@ import { useAuth } from "../../contexts/AuthContext";
 const navigation = [
     { name: 'Dashboard', path: '/seller/dashboard', icon: <LayoutDashboard size={20} /> },
     { name: 'All Auctions', path: '/seller/auctions/all', icon: <Gavel size={20} /> },
-    { name: 'Create Auction', path: '/seller/auctions/create', icon: <Plus size={20} /> },
+    { name: 'All Products', path: '/seller/products/all', icon: <ShoppingBag size={20} /> },
+    { name: 'Communications', path: '/seller/communications/all', icon: <MessageSquare size={20} /> },
+    { name: 'Create Auction', path: '/seller/auctions/create', icon: <PlusCircle size={20} /> },
+    { name: 'Create Product', path: '/seller/products/create', icon: <LucidePlusSquare size={20} /> },
     { name: 'Sold Auctions', path: '/seller/auctions/sold', icon: <Award size={20} /> },
+    { name: 'Sold Products', path: '/seller/products/sold', icon: <BadgeCheck size={20} /> },
     { name: 'Bid History', path: '/seller/bids/history', icon: <TrendingUp size={20} /> },
     // { name: 'All Offers', path: '/seller/offers/all', icon: <Hand size={20} /> },
     { name: 'Payout Methods', path: '/seller/payout-methods', icon: <BanknoteArrowUp size={20} /> },

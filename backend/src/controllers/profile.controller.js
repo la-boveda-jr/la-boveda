@@ -207,26 +207,26 @@ export const getUserStats = async (req, res) => {
     let statistics = {};
 
     if (userType === "bidder") {
-      // Bidder-specific statistics
+      const auctionMatch = { auctionType: { $ne: "buy_now" } };
+      const productMatch = { auctionType: "buy_now" };
 
-      // 1. Total Bids Count (excluding buy now bids)
+      // ===== AUCTION STATS =====
       const totalBidsResult = await Auction.aggregate([
-        { $match: { "bids.bidder": userId } },
+        { $match: { "bids.bidder": userId, ...auctionMatch } },
         { $unwind: "$bids" },
         { $match: { "bids.bidder": userId, "bids.isBuyNow": { $ne: true } } },
         { $group: { _id: null, total: { $sum: 1 } } },
       ]);
 
-      // 2. Total Offers Count
       const totalOffersCount = await Auction.aggregate([
-        { $match: { "offers.buyer": userId } },
+        { $match: { "offers.buyer": userId, ...auctionMatch } },
         { $unwind: "$offers" },
         { $match: { "offers.buyer": userId } },
         { $group: { _id: null, total: { $sum: 1 } } },
       ]);
 
-      // 3. Total Participated Auctions (bids OR offers OR winner)
       const participatedAuctions = await Auction.countDocuments({
+        ...auctionMatch,
         $or: [
           { "bids.bidder": userId },
           { "offers.buyer": userId },
@@ -234,142 +234,104 @@ export const getUserStats = async (req, res) => {
         ],
       });
 
-      // 4. Active Auctions where user is currently winning (highest bidder)
       const currentlyWinning = await Auction.countDocuments({
+        ...auctionMatch,
         currentBidder: userId,
         status: "active",
         endDate: { $gt: new Date() },
       });
 
-      // 5. Active Bids (bids on live auctions)
       const activeBidsResult = await Auction.aggregate([
-        {
-          $match: {
-            "bids.bidder": userId,
-            status: "active",
-            endDate: { $gt: new Date() },
-          },
-        },
+        { $match: { ...auctionMatch, "bids.bidder": userId, status: "active", endDate: { $gt: new Date() } } },
         { $unwind: "$bids" },
         { $match: { "bids.bidder": userId } },
         { $group: { _id: null, count: { $sum: 1 } } },
       ]);
-
       const activeBids = activeBidsResult[0]?.count || 0;
 
-      // 6. Active Offers (pending offers on live auctions)
       const activeOffersResult = await Auction.aggregate([
-        {
-          $match: {
-            "offers.buyer": userId,
-            status: "active",
-            endDate: { $gt: new Date() },
-          },
-        },
+        { $match: { ...auctionMatch, "offers.buyer": userId, status: "active", endDate: { $gt: new Date() } } },
         { $unwind: "$offers" },
         { $match: { "offers.buyer": userId, "offers.status": "pending" } },
         { $group: { _id: null, count: { $sum: 1 } } },
       ]);
-
       const activeOffers = activeOffersResult[0]?.count || 0;
 
-      // 7. Won Auctions (user is winner AND auction is sold)
       const wonAuctions = await Auction.countDocuments({
+        ...auctionMatch,
         winner: userId,
         status: { $in: ["sold", "sold_buy_now"] },
       });
 
-      // 8. Watchlist count
       const watchlistItems = await Watchlist.aggregate([
-        {
-          $lookup: {
-            from: "auctions",
-            localField: "auction",
-            foreignField: "_id",
-            as: "auction",
-          },
-        },
-        {
-          $unwind: "$auction",
-        },
-        {
-          $match: {
-            "auction.status": "active",
-            user: userId,
-          },
-        },
-        {
-          $count: "count",
-        },
+        { $lookup: { from: "auctions", localField: "auction", foreignField: "_id", as: "auction" } },
+        { $unwind: "$auction" },
+        { $match: { "auction.status": "active", "auction.auctionType": { $ne: "buy_now" }, user: userId } },
+        { $count: "count" },
       ]);
-
       const watchlistCount = watchlistItems[0]?.count || 0;
 
-      // 9. Total Spent (sum of winning bids + accepted offers)
-      const winningBidsSpent = await Auction.aggregate([
-        {
-          $match: {
-            winner: userId,
-            status: { $in: ["sold"] },
-            finalPrice: { $exists: true },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: "$finalPrice" },
-          },
-        },
-      ]);
-
       const acceptedOffersSpent = await Auction.aggregate([
-        { $match: { "offers.buyer": userId, "offers.status": "accepted" } },
+        { $match: { ...auctionMatch, "offers.buyer": userId, "offers.status": "accepted" } },
         { $unwind: "$offers" },
         { $match: { "offers.buyer": userId, "offers.status": "accepted" } },
         { $group: { _id: null, total: { $sum: "$offers.amount" } } },
       ]);
-
       const totalSpent = acceptedOffersSpent[0]?.total || 0;
 
-      // 10. Average Bid Amount (only for regular bids, not buy now)
       const totalBids = totalBidsResult[0]?.total || 0;
       const totalOffers = totalOffersCount[0]?.total || 0;
 
       const totalBidAmount = await Auction.aggregate([
-        { $match: { "bids.bidder": userId } },
+        { $match: { ...auctionMatch, "bids.bidder": userId } },
         { $unwind: "$bids" },
         { $match: { "bids.bidder": userId, "bids.isBuyNow": { $ne: true } } },
         { $group: { _id: null, total: { $sum: "$bids.amount" } } },
       ]);
+      const avgBidAmount = totalBids > 0 ? (totalBidAmount[0]?.total || 0) / totalBids : 0;
 
-      const avgBidAmount =
-        totalBids > 0 ? (totalBidAmount[0]?.total || 0) / totalBids : 0;
-
-      // 11. Average Offer Amount
       const totalOfferValue = await Auction.aggregate([
-        { $match: { "offers.buyer": userId } },
+        { $match: { ...auctionMatch, "offers.buyer": userId } },
         { $unwind: "$offers" },
         { $match: { "offers.buyer": userId } },
         { $group: { _id: null, total: { $sum: "$offers.amount" } } },
       ]);
+      const avgOfferAmount = totalOffers > 0 ? (totalOfferValue[0]?.total || 0) / totalOffers : 0;
 
-      const avgOfferAmount =
-        totalOffers > 0 ? (totalOfferValue[0]?.total || 0) / totalOffers : 0;
+      const successRate = participatedAuctions > 0
+        ? Math.round((wonAuctions / participatedAuctions) * 100) : 0;
 
-      // 12. Success Rate (won auctions / participated auctions)
-      const successRate =
-        participatedAuctions > 0
-          ? Math.round((wonAuctions / participatedAuctions) * 100)
-          : 0;
-
-      // 13. Buy Now purchases (if any)
       const buyNowPurchases = await Auction.countDocuments({
+        ...auctionMatch,
         winner: userId,
         status: "sold_buy_now",
       });
 
+      // ===== PRODUCT STATS =====
+      const totalProductsPurchased = await Auction.countDocuments({
+        ...productMatch,
+        winner: userId,
+        status: "sold",
+      });
+
+      const recentPurchases = await Auction.countDocuments({
+        ...productMatch,
+        winner: userId,
+        status: "sold",
+        updatedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      });
+
+      const productSpendingResult = await Auction.aggregate([
+        { $match: { ...productMatch, winner: userId, status: "sold" } },
+        { $group: { _id: null, total: { $sum: "$finalPrice" }, avg: { $avg: "$finalPrice" } } },
+      ]);
+      const totalProductSpent = productSpendingResult[0]?.total || 0;
+      const avgProductSpent = productSpendingResult[0]?.avg || 0;
+
       statistics = {
         userType: "bidder",
+
+        // Auction stats
         totalBids,
         totalOffers,
         activeOffers,
@@ -380,164 +342,135 @@ export const getUserStats = async (req, res) => {
         totalSpent,
         avgBidAmount: Math.round(avgBidAmount),
         avgOfferAmount: Math.round(avgOfferAmount),
-
-        // Frontend requested fields
         currentlyWinning,
         totalParticipatedAuctions: participatedAuctions,
-
-        // Additional useful metrics
         buyNowPurchases,
         totalAcceptedOffers: acceptedOffersSpent[0]?.total || 0,
         totalRejectedOffers: await Auction.aggregate([
-          { $match: { "offers.buyer": userId } },
+          { $match: { ...auctionMatch, "offers.buyer": userId } },
           { $unwind: "$offers" },
           { $match: { "offers.buyer": userId, "offers.status": "rejected" } },
           { $group: { _id: null, count: { $sum: 1 } } },
-        ]).then((result) => result[0]?.count || 0),
-
-        // Recent activity (last 7 days)
+        ]).then((r) => r[0]?.count || 0),
         recentBids: await Auction.aggregate([
           {
             $match: {
+              ...auctionMatch,
               "bids.bidder": userId,
-              "bids.timestamp": {
-                $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-              },
+              "bids.timestamp": { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
             },
           },
           { $unwind: "$bids" },
           {
             $match: {
               "bids.bidder": userId,
-              "bids.timestamp": {
-                $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-              },
+              "bids.timestamp": { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
             },
           },
           { $group: { _id: null, count: { $sum: 1 } } },
-        ]).then((result) => result[0]?.count || 0),
+        ]).then((r) => r[0]?.count || 0),
+
+        // Product stats
+        totalProductsPurchased,
+        recentPurchases,
+        totalProductSpent: Math.round(totalProductSpent),
+        avgProductSpent: Math.round(avgProductSpent),
       };
     } else if (userType === "seller") {
-      // Seller-specific statistics
-      const totalAuctions = await Auction.countDocuments({
-        seller: userId,
-      });
+      const auctionOnly = { seller: userId, auctionType: { $ne: "buy_now" } };
+      const productOnly = { seller: userId, auctionType: "buy_now" };
 
+      // ===== AUCTION STATS =====
+      const totalAuctions = await Auction.countDocuments(auctionOnly);
       const activeAuctions = await Auction.countDocuments({
-        seller: userId,
-        status: "active",
-        endDate: { $gt: new Date() },
+        ...auctionOnly, status: "active", endDate: { $gt: new Date() },
       });
-
-      const soldAuctions = await Auction.countDocuments({
-        seller: userId,
-        status: "sold",
-      });
-
-      const draftAuctions = await Auction.countDocuments({
-        seller: userId,
-        status: "draft",
-      });
-
+      const soldAuctions = await Auction.countDocuments({ ...auctionOnly, status: "sold" });
+      const draftAuctions = await Auction.countDocuments({ ...auctionOnly, status: "draft" });
       const endedNotSold = await Auction.countDocuments({
-        seller: userId,
-        status: "ended",
-        winner: { $exists: false },
+        ...auctionOnly, status: "ended", winner: { $exists: false },
       });
-
       const endingSoonAuctions = await Auction.countDocuments({
-        seller: userId,
+        ...auctionOnly,
         status: "active",
-        endDate: {
-          $gt: new Date(),
-          $lt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Less than 24 hours from now
-        },
+        endDate: { $gt: new Date(), $lt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
       });
-
       const reserveNotMet = await Auction.countDocuments({
-        seller: userId,
-        status: "reserve_not_met",
+        ...auctionOnly, status: "reserve_not_met",
       });
 
-      // Calculate total revenue from sold auctions
       const totalRevenueResult = await Auction.aggregate([
-        { $match: { seller: userId, status: "sold" } },
+        { $match: { ...auctionOnly, status: "sold" } },
         { $group: { _id: null, total: { $sum: "$finalPrice" } } },
       ]);
-
       const totalRevenue = totalRevenueResult[0]?.total || 0;
-
-      // Calculate average sale price
       const avgSalePrice = soldAuctions > 0 ? totalRevenue / soldAuctions : 0;
 
-      // Calculate success rate (sold vs total completed auctions)
       const completedAuctions = soldAuctions + endedNotSold + reserveNotMet;
-      const successRate =
-        completedAuctions > 0
-          ? Math.round((soldAuctions / completedAuctions) * 100)
-          : 0;
+      const successRate = completedAuctions > 0
+        ? Math.round((soldAuctions / completedAuctions) * 100) : 0;
 
-      // Calculate total bids across all seller's auctions
       const totalBidsOnAuctions = await Auction.aggregate([
-        { $match: { seller: userId } },
+        { $match: auctionOnly },
         { $group: { _id: null, totalBids: { $sum: "$bidCount" } } },
       ]);
-
       const totalBidsReceived = totalBidsOnAuctions[0]?.totalBids || 0;
+      const avgBidsPerAuction = totalAuctions > 0 ? totalBidsReceived / totalAuctions : 0;
 
-      // Calculate average bids per auction
-      const avgBidsPerAuction =
-        totalAuctions > 0 ? totalBidsReceived / totalAuctions : 0;
-
-      // Get highest selling auction
-      const highestSaleResult = await Auction.findOne({
-        seller: userId,
-        status: "sold",
-      })
+      const highestSaleResult = await Auction.findOne({ ...auctionOnly, status: "sold" })
         .sort({ finalPrice: -1 })
         .select("title finalPrice");
 
-      // Get most bid-on auction
-      const mostPopularAuction = await Auction.findOne({
-        seller: userId,
-        bidCount: { $gt: 0 },
-        watchlistCount: { $gte: 0 },
-      })
+      const mostPopularAuction = await Auction.findOne({ ...auctionOnly, bidCount: { $gt: 0 } })
         .sort({ bidCount: -1 })
-        .select("title bidCount");
-
-      // const totalWatchlists = await Watchlist.countDocuments({
-      //     auction: { $in: await Auction.find({ seller: userId }).select('_id') }
-      // });
+        .select("title bidCount watchlistCount");
 
       const totalWatchlists = await Watchlist.aggregate([
-        {
-          $lookup: {
-            from: "auctions",
-            localField: "auction",
-            foreignField: "_id",
-            as: "auction",
-          },
-        },
-        {
-          $unwind: "$auction",
-        },
+        { $lookup: { from: "auctions", localField: "auction", foreignField: "_id", as: "auction" } },
+        { $unwind: "$auction" },
         {
           $match: {
             "auction.status": "active",
+            "auction.auctionType": { $ne: "buy_now" },
             "auction.seller": userId,
           },
         },
-        {
-          $count: "count",
-        },
+        { $count: "count" },
       ]);
-
       const totalWatchlistsCount = totalWatchlists[0]?.count || 0;
+
+      const auctionViews = await Auction.aggregate([
+        { $match: auctionOnly },
+        { $group: { _id: null, totalViews: { $sum: "$views" } } },
+      ]).then((r) => r[0]?.totalViews || 0);
+
+      // ===== PRODUCT STATS =====
+      const totalProducts = await Auction.countDocuments(productOnly);
+      const activeProducts = await Auction.countDocuments({ ...productOnly, status: "active" });
+      const soldProducts = await Auction.countDocuments({ ...productOnly, status: "sold" });
+      const draftProducts = await Auction.countDocuments({ ...productOnly, status: "draft" });
+      const cancelledProducts = await Auction.countDocuments({ ...productOnly, status: "cancelled" });
+
+      const productRevenueResult = await Auction.aggregate([
+        { $match: { ...productOnly, status: "sold" } },
+        { $group: { _id: null, total: { $sum: "$finalPrice" } } },
+      ]);
+      const productRevenue = productRevenueResult[0]?.total || 0;
+      const avgProductPrice = soldProducts > 0 ? productRevenue / soldProducts : 0;
+
+      const completedProducts = soldProducts + cancelledProducts;
+      const productSuccessRate = completedProducts > 0
+        ? Math.round((soldProducts / completedProducts) * 100) : 0;
+
+      const productViews = await Auction.aggregate([
+        { $match: productOnly },
+        { $group: { _id: null, totalViews: { $sum: "$views" } } },
+      ]).then((r) => r[0]?.totalViews || 0);
 
       statistics = {
         userType: "seller",
-        // Basic counts
+
+        // Auction stats
         totalAuctions,
         activeAuctions,
         soldAuctions,
@@ -545,48 +478,40 @@ export const getUserStats = async (req, res) => {
         endedNotSold,
         endingSoonAuctions,
         reserveNotMet,
-
-        // Financial metrics
         totalRevenue,
         avgSalePrice: Math.round(avgSalePrice),
         successRate,
-
-        // Engagement metrics
         totalBidsReceived,
         avgBidsPerAuction: Math.round(avgBidsPerAuction * 100) / 100,
-
-        // Performance highlights
         highestSale: highestSaleResult
-          ? {
-              title: highestSaleResult.title,
-              amount: highestSaleResult.finalPrice,
-            }
+          ? { title: highestSaleResult.title, amount: highestSaleResult.finalPrice }
           : null,
-
         mostPopularAuction: mostPopularAuction
           ? {
-              title: mostPopularAuction.title,
-              bidCount: mostPopularAuction.bidCount,
-              watchlistCount: mostPopularAuction.watchlistCount,
-            }
+            title: mostPopularAuction.title,
+            bidCount: mostPopularAuction.bidCount,
+            watchlistCount: mostPopularAuction.watchlistCount,
+          }
           : null,
-
-        // Additional insights
-        totalViews: await Auction.aggregate([
-          { $match: { seller: userId } },
-          { $group: { _id: null, totalViews: { $sum: "$views" } } },
-        ]).then((result) => result[0]?.totalViews || 0),
-
+        totalViews: auctionViews,
         totalWatchlists: totalWatchlistsCount,
+
+        // Product stats
+        totalProducts,
+        activeProducts,
+        soldProducts,
+        draftProducts,
+        cancelledProducts,
+        productRevenue,
+        avgProductPrice: Math.round(avgProductPrice),
+        productSuccessRate,
+        productViews,
       };
     }
 
     res.status(200).json({
       success: true,
-      data: {
-        statistics,
-        userType,
-      },
+      data: { statistics, userType },
     });
   } catch (error) {
     console.error("Get user stats error:", error);
@@ -596,6 +521,8 @@ export const getUserStats = async (req, res) => {
     });
   }
 };
+
+
 //     try {
 //         const userId = req.user._id;
 //         const userType = req.user.userType;

@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PopUpContextProvider } from './contexts/PopUpContextProvider';
 import { Protected, LoadingSpinner, AdminRoute } from './components';
 import { AuthProvider } from './contexts/AuthContext.jsx';
+import { installTranslationResilience } from 'translation-resilience';
+installTranslationResilience();
 
 const Home = lazy(() => import('./pages/Home'));
 const Contact = lazy(() => import('./pages/Contact'));

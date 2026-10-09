@@ -546,7 +546,7 @@ function Categories() {
                     <AdminHeader />
                     <AdminContainer>
                         <div className="flex justify-center items-center min-h-96">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#C59D55]"></div>
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
                         </div>
                     </AdminContainer>
                 </div>
@@ -572,7 +572,7 @@ function Categories() {
                             </div>
                             <button
                                 onClick={() => setShowForm(true)}
-                                className="mt-4 md:mt-0 flex items-center gap-2 bg-[#C59D55] text-white hover:bg-[#C59D55]/90 px-4 py-3 rounded-lg transition-colors"
+                                className="mt-4 md:mt-0 flex items-center gap-2 bg-primary text-white hover:bg-primary/90 px-4 py-3 rounded-lg transition-colors"
                             >
                                 <Plus size={20} />
                                 Add New Category
@@ -590,7 +590,7 @@ function Categories() {
                                     <input
                                         type="text"
                                         placeholder="Search categories..."
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                         value={filters.search}
                                         onChange={(e) => handleFilterChange('search', e.target.value)}
                                     />
@@ -598,9 +598,9 @@ function Categories() {
                             </div>
 
                             {/* Level Filter */}
-                            {/* <div>
+                            <div>
                                 <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                     value={filters.level}
                                     onChange={(e) => handleFilterChange('level', e.target.value)}
                                 >
@@ -608,12 +608,12 @@ function Categories() {
                                     <option value="0">Parent Categories</option>
                                     <option value="1">Subcategories</option>
                                 </select>
-                            </div> */}
+                            </div>
 
                             {/* Status Filter */}
-                            {/* <div>
+                            <div>
                                 <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                     value={filters.status}
                                     onChange={(e) => handleFilterChange('status', e.target.value)}
                                 >
@@ -621,12 +621,12 @@ function Categories() {
                                     <option value="true">Active</option>
                                     <option value="false">Inactive</option>
                                 </select>
-                            </div> */}
+                            </div>
 
                             {/* Sort By */}
-                            {/* <div>
+                            <div>
                                 <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                     value={filters.sortBy}
                                     onChange={(e) => handleFilterChange('sortBy', e.target.value)}
                                 >
@@ -635,7 +635,7 @@ function Categories() {
                                     <option value="level">Sort by Level</option>
                                     <option value="createdAt">Sort by Date</option>
                                 </select>
-                            </div> */}
+                            </div>
                         </div>
 
                         <div className="flex justify-between items-center mt-4">
@@ -716,7 +716,7 @@ function Categories() {
                                 </p>
                                 <button
                                     onClick={() => setShowForm(true)}
-                                    className="inline-flex items-center gap-2 bg-[#C59D55] text-white hover:bg-[#C59D55]/90 px-4 py-2 rounded-lg transition-colors"
+                                    className="inline-flex items-center gap-2 bg-primary text-white hover:bg-primary/90 px-4 py-2 rounded-lg transition-colors"
                                 >
                                     <Plus size={18} />
                                     Create Category
@@ -1022,8 +1022,8 @@ const CategoryFormModal = ({
                                     type="text"
                                     value={formData.name}
                                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
-                                    placeholder="e.g., Sports Cards, Signed Jerseys"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                    placeholder="e.g., sofa, table, chair..."
                                     required
                                 />
                             </div>
@@ -1036,7 +1036,7 @@ const CategoryFormModal = ({
                                     value={formData.description}
                                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                                     rows={3}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                     placeholder="Brief description of this category..."
                                 />
                             </div>
@@ -1048,7 +1048,7 @@ const CategoryFormModal = ({
                                 <select
                                     value={formData.parentCategory}
                                     onChange={(e) => setFormData(prev => ({ ...prev, parentCategory: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                 >
                                     <option value="">-- None (Parent Category) --</option>
                                     {parentCategories
@@ -1073,7 +1073,7 @@ const CategoryFormModal = ({
                                         type="number"
                                         value={formData.order}
                                         onChange={(e) => setFormData(prev => ({ ...prev, order: parseInt(e.target.value) || 0 }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                         min="0"
                                     />
                                 </div>
@@ -1086,7 +1086,7 @@ const CategoryFormModal = ({
                                         id="isActive"
                                         checked={formData.isActive}
                                         onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                                        className="h-4 w-4 text-[#C59D55] rounded focus:ring-[#C59D55]"
+                                        className="h-4 w-4 text-orange-500 rounded focus:ring-orange-500"
                                     />
                                     <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
                                         Active Category
@@ -1100,7 +1100,7 @@ const CategoryFormModal = ({
                                             id="inheritedFields"
                                             checked={formData.inheritedFields}
                                             onChange={(e) => setFormData(prev => ({ ...prev, inheritedFields: e.target.checked }))}
-                                            className="h-4 w-4 text-[#C59D55] rounded focus:ring-[#C59D55]"
+                                            className="h-4 w-4 text-orange-500 rounded focus:ring-orange-500"
                                         />
                                         <label htmlFor="inheritedFields" className="ml-2 text-sm text-gray-700">
                                             Inherit fields from parent
@@ -1120,7 +1120,7 @@ const CategoryFormModal = ({
                                 Category Icon
                             </h4>
 
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#C59D55] transition-colors">
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 transition-colors">
                                 <input
                                     type="file"
                                     ref={fileInputRef}
@@ -1189,7 +1189,7 @@ const CategoryFormModal = ({
                                 Category Image
                             </h4>
 
-                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#C59D55] transition-colors">
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 transition-colors">
                                 <input
                                     type="file"
                                     ref={imageInputRef}
@@ -1266,7 +1266,7 @@ const CategoryFormModal = ({
                     <button
                         type="submit"
                         disabled={uploading}
-                        className="flex-1 px-4 py-3 bg-[#C59D55] text-white hover:bg-[#C59D55]/90 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-3 bg-bg-primary text-white hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         {uploading ? (
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black"></div>
@@ -1340,7 +1340,7 @@ const FieldManagerModal = ({
                             <h4 className="font-medium text-gray-700">Category Fields</h4>
                             <button
                                 onClick={onAddField}
-                                className="flex items-center gap-2 bg-[#C59D55] text-white hover:bg-[#C59D55]/90 px-4 py-2 rounded-lg transition-colors"
+                                className="flex items-center gap-2 bg-primary text-white hover:bg-primary/90 px-4 py-2 rounded-lg transition-colors"
                             >
                                 <PlusCircle size={18} />
                                 Add Field
@@ -1349,7 +1349,7 @@ const FieldManagerModal = ({
 
                         {loading ? (
                             <div className="flex justify-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C59D55]"></div>
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
                             </div>
                         ) : fields.length === 0 ? (
                             <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -1360,7 +1360,7 @@ const FieldManagerModal = ({
                                 </p>
                                 <button
                                     onClick={onAddField}
-                                    className="inline-flex items-center gap-2 bg-[#C59D55] text-white hover:bg-[#C59D55]/90 px-4 py-2 rounded-lg transition-colors"
+                                    className="inline-flex items-center gap-2 bg-primary text-white hover:bg-primary/90 px-4 py-2 rounded-lg transition-colors"
                                 >
                                     <Plus size={18} />
                                     Add Your First Field
@@ -1424,7 +1424,7 @@ const FieldManagerModal = ({
                                                                 <Edit size={16} />
                                                             </button>
                                                             <button
-                                                                onClick={() => onDeleteField(field._id)}
+                                                                onClick={() => onDeleteField(field.name)}
                                                                 className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                                                                 disabled={field.inherited}
                                                                 title={field.inherited ? 'Inherited fields cannot be deleted here' : 'Delete field'}
@@ -1508,8 +1508,8 @@ const FieldForm = ({
                                 name: label.toLowerCase().replace(/\s+/g, '_')
                             }));
                         }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
-                        placeholder="e.g., Engine Power"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="e.g., Brand, Color, Material..."
                         required
                     />
                     <p className="text-xs text-gray-500 mt-1">
@@ -1524,7 +1524,7 @@ const FieldForm = ({
                     <select
                         value={fieldFormData.fieldType}
                         onChange={(e) => setFieldFormData(prev => ({ ...prev, fieldType: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     >
                         <option value="text">Text</option>
                         <option value="number">Number</option>
@@ -1544,8 +1544,8 @@ const FieldForm = ({
                         type="text"
                         value={fieldFormData.group}
                         onChange={(e) => setFieldFormData(prev => ({ ...prev, group: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
-                        placeholder="e.g., Engine, Dimensions, Features"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="e.g., General, Specs..."
                     />
                 </div>
 
@@ -1558,7 +1558,7 @@ const FieldForm = ({
                             type="text"
                             value={fieldFormData.placeholder}
                             onChange={(e) => setFieldFormData(prev => ({ ...prev, placeholder: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         />
                     </div>
                     <div>
@@ -1569,7 +1569,7 @@ const FieldForm = ({
                             type="text"
                             value={fieldFormData.unit}
                             onChange={(e) => setFieldFormData(prev => ({ ...prev, unit: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#C59D55] focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         />
                     </div>
                 </div>
@@ -1581,7 +1581,7 @@ const FieldForm = ({
                             id="field-required"
                             checked={fieldFormData.required}
                             onChange={(e) => setFieldFormData(prev => ({ ...prev, required: e.target.checked }))}
-                            className="h-4 w-4 text-[#C59D55] rounded focus:ring-[#C59D55]"
+                            className="h-4 w-4 text-orange-500 rounded focus:ring-orange-500"
                         />
                         <label htmlFor="field-required" className="ml-2 text-sm text-gray-700">
                             Required field
@@ -1647,7 +1647,7 @@ const FieldForm = ({
                             <button
                                 type="button"
                                 onClick={handleAddOption}
-                                className="px-3 py-2 bg-gradient-to-r from-[#C59D55] via-[#C59D55] to-[#C59D55] text-white hover:from-[#C59D55]/90 hover:via-[#C59D55]/90 hover:to-[#C59D55]/90 rounded-lg"
+                                className="px-3 py-2 bg-primary text-white hover:bg-primary/90 rounded-lg"
                             >
                                 <Plus size={16} />
                             </button>
@@ -1777,7 +1777,7 @@ const FieldForm = ({
             <button
                 type="button"
                 onClick={handleSaveField}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-[#C59D55] via-[#C59D55] to-[#C59D55] text-white hover:from-[#C59D55]/90 hover:via-[#C59D55]/90 hover:to-[#C59D55]/90 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-primary text-white hover:bg-primary/90 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
                 <Save size={18} />
                 {editingField ? 'Update Field' : 'Add Field'}

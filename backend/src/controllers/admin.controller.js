@@ -1799,6 +1799,7 @@ export const updateAuction = async (req, res) => {
 
     // ========== STATUS DETERMINATION ==========
     let newStatus;
+    const now = new Date();
 
     if (isSoldAuction) {
       // Sold reset logic (unchanged) — for products there's no startDate/endDate

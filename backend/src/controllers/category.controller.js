@@ -5,11 +5,6 @@ import {
 } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 
-/**
- * @desc    Create a new category (with parent support and fields)
- * @route   POST /api/v1/admin/categories
- * @access  Private/Admin
- */
 export const createCategory = async (req, res) => {
   try {
     const admin = req.user;
@@ -49,18 +44,25 @@ export const createCategory = async (req, res) => {
       }
     }
 
-    // Check if category already exists
-    const existingCategory = await Category.findOne({
-      $or: [
-        { name: name.trim() },
-        { slug: name.trim().toLowerCase().replace(/\s+/g, "-") },
-      ],
-    });
+    // Check if category already exists under the same parent
+    const query = {
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+    };
+
+    // If parentCategory is provided, check only within that parent
+    // If no parentCategory, check only root-level categories (parentCategory: null)
+    if (parentCategory) {
+      query.parentCategory = parentCategory;
+    } else {
+      query.parentCategory = null;
+    }
+
+    const existingCategory = await Category.findOne(query);
 
     if (existingCategory) {
       return res.status(400).json({
         success: false,
-        message: "Category with this name already exists",
+        message: `A category with name "${name.trim()}" already exists ${parentCategory ? 'under this parent category' : 'at the root level'}`,
       });
     }
 
@@ -443,14 +445,20 @@ export const updateCategoryField = async (req, res) => {
       });
     }
 
-    // Try to find by ID first
+    // First try to find by _id (this is the reliable method)
     let fieldIndex = category.fields.findIndex(
       (f) => f._id && f._id.toString() === fieldId.toString(),
     );
 
-    // If not found by ID, try to find by name (for backward compatibility)
-    if (fieldIndex === -1 && fieldData.name) {
-      fieldIndex = category.fields.findIndex((f) => f.name === fieldData.name);
+    // If not found by _id, try to find by name using the ORIGINAL name from the request
+    // But we need to pass the original name separately
+    if (fieldIndex === -1 && fieldData.originalName) {
+      fieldIndex = category.fields.findIndex((f) => f.name === fieldData.originalName);
+    }
+
+    // If still not found and we have the fieldId, try that as a name (for backward compatibility)
+    if (fieldIndex === -1 && fieldId) {
+      fieldIndex = category.fields.findIndex((f) => f.name === fieldId);
     }
 
     if (fieldIndex === -1) {
@@ -460,15 +468,11 @@ export const updateCategoryField = async (req, res) => {
       });
     }
 
-    // If field doesn't have an _id, generate one
-    if (!category.fields[fieldIndex]._id) {
-      category.fields[fieldIndex]._id = new mongoose.Types.ObjectId();
-    }
-
-    // Update field
+    // Preserve the original _id
     const existingField = category.fields[fieldIndex];
+    
+    // Update field, but keep the original _id
     category.fields[fieldIndex] = {
-      ...(existingField.toObject ? existingField.toObject() : existingField),
       ...fieldData,
       _id: existingField._id, // Preserve the ID
     };
@@ -509,7 +513,8 @@ export const deleteCategoryField = async (req, res) => {
     }
 
     category.fields = category.fields.filter(
-      (f) => f._id.toString() !== fieldId,
+      // (f) => f._id.toString() !== fieldId,
+      (f) => f.name !== fieldId,
     );
     await category.save();
 
@@ -827,7 +832,7 @@ export const getCategoriesWithImages = async (req, res) => {
       image: { $exists: true, $ne: null }, // Only categories with images
       "image.url": { $exists: true, $ne: "" }, // Ensure image URL exists
     })
-      .select("name slug image order auctionCount")
+      .select("name slug image order auctionCount description")
       .sort({ order: 1, name: 1 })
       .limit(20); // Limit to 10 categories
 
@@ -836,9 +841,9 @@ export const getCategoriesWithImages = async (req, res) => {
       name: category.name,
       slug: category.slug,
       image: category.image?.url,
-      icon: category.icon?.url,
       order: category.order,
       auctionCount: category.auctionCount,
+      description: category.description
     }));
 
     res.status(200).json({
@@ -853,8 +858,6 @@ export const getCategoriesWithImages = async (req, res) => {
     });
   }
 };
-
-// Add to category.controller.js
 
 /**
  * @desc    Get parent categories (level 0) - PUBLIC
@@ -979,9 +982,9 @@ export const getCategoryFieldsBySlug = async (req, res) => {
         sourceCategory:
           fieldObj.inherited && category.parentCategory
             ? {
-                name: category.parentCategory.name,
-                slug: category.parentCategory.slug,
-              }
+              name: category.parentCategory.name,
+              slug: category.parentCategory.slug,
+            }
             : null,
       };
     });
@@ -1034,36 +1037,36 @@ export const getAllSubcategories = async (req, res) => {
  * @access  Public
  */
 export const getParentCategoriesWithImages = async (req, res) => {
-    try {
-        const categories = await Category.find({ 
-            isActive: true,
-            level: 0, // Only parent categories
-            image: { $exists: true, $ne: null }, // Only categories with images
-            'image.url': { $exists: true, $ne: '' }
-        })
-        .select('name slug image icon order auctionCount')
-        .sort({ order: 1, name: 1 })
-        .limit(20);
+  try {
+    const categories = await Category.find({
+      isActive: true,
+      level: 0, // Only parent categories
+      image: { $exists: true, $ne: null }, // Only categories with images
+      'image.url': { $exists: true, $ne: '' }
+    })
+      .select('name slug image order auctionCount description')
+      .sort({ order: 1, name: 1 })
+      .limit(20);
 
-        // Format categories for frontend
-        const formattedCategories = categories.map(category => ({
-            name: category.name,
-            slug: category.slug,
-            image: category.image?.url,
-            icon: category.icon?.url,
-            order: category.order,
-            auctionCount: category.auctionCount
-        }));
+    // Format categories for frontend
+    const formattedCategories = categories.map(category => ({
+      name: category.name,
+      slug: category.slug,
+      image: category.image?.url,
+      order: category.order,
+      auctionCount: category.auctionCount,
+      description: category?.description
+    }));
 
-        res.status(200).json({
-            success: true,
-            data: formattedCategories
-        });
-    } catch (error) {
-        console.error('Get parent categories with images error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch categories'
-        });
-    }
+    res.status(200).json({
+      success: true,
+      data: formattedCategories
+    });
+  } catch (error) {
+    console.error('Get parent categories with images error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch categories'
+    });
+  }
 };

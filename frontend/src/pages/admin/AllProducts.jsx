@@ -447,6 +447,7 @@ function AllProducts() {
                                         <div className="mb-6">
                                             <h5 className="font-semibold text-gray-900 mb-3">Specifications</h5>
                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                {console.log(selectedProduct.specifications)}
                                                 {Object.entries(selectedProduct.specifications).map(([key, value]) => (
                                                     <div key={key} className="bg-gray-50 rounded-lg p-3">
                                                         <div className="text-sm font-medium text-gray-500 capitalize">
